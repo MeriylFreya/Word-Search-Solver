@@ -1,0 +1,1068 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Word Search Solver - AI Powered</title>
+<link rel="icon" type="image/jpeg" href="word.jpg">
+
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/wordfreq@1.0.1/dist/index.min.js"></script>
+
+<style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.header {
+  text-align: center;
+  color: white;
+  margin-bottom: 30px;
+  animation: fadeIn 0.8s ease-in;
+}
+
+.header h1 {
+  font-size: 2.5em;
+  margin-bottom: 10px;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+}
+
+.header p {
+  font-size: 1.1em;
+  opacity: 0.9;
+}
+
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 25px;
+}
+
+.card {
+  background: white;
+  padding: 25px;
+  border-radius: 15px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+  animation: slideUp 0.6s ease-out;
+}
+
+.upload-section {
+  text-align: center;
+  padding: 40px 20px;
+  border: 3px dashed #667eea;
+  border-radius: 12px;
+  background: #f8f9ff;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  margin-bottom: 20px;
+}
+
+.upload-section:hover {
+  border-color: #764ba2;
+  background: #f0f2ff;
+  transform: translateY(-2px);
+}
+
+.upload-section.dragover {
+  border-color: #764ba2;
+  background: #e8ebff;
+}
+
+.upload-icon {
+  font-size: 3em;
+  margin-bottom: 15px;
+  color: #667eea;
+}
+
+#imageInput {
+  display: none;
+}
+
+.upload-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 12px 30px;
+  border: none;
+  border-radius: 25px;
+  font-size: 1em;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.upload-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+}
+
+.canvas-container {
+  text-align: center;
+  margin-top: 20px;
+  display: none;
+}
+
+canvas {
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  max-width: 100%;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  display: block;
+  margin: 10px auto;
+}
+
+#gridCanvas {
+  border: 3px solid #667eea;
+  margin-top: 10px;
+}
+
+#status {
+  margin-top: 15px;
+  padding: 12px;
+  background: #f0f2ff;
+  border-radius: 8px;
+  color: #667eea;
+  font-weight: 500;
+  display: none;
+}
+
+#status.show {
+  display: block;
+  animation: pulse 1.5s infinite;
+}
+
+#status.success {
+  background: #d4edda;
+  color: #155724;
+  animation: none;
+}
+
+#status.error {
+  background: #f8d7da;
+  color: #721c24;
+  animation: none;
+}
+
+.input-group {
+  margin-bottom: 20px;
+}
+
+.input-group label {
+  display: block;
+  margin-bottom: 8px;
+  color: #333;
+  font-weight: 600;
+  font-size: 0.95em;
+}
+
+textarea {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-family: 'Courier New', monospace;
+  font-size: 1em;
+  resize: vertical;
+  transition: border-color 0.3s ease;
+}
+
+textarea:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+#gridInput {
+  height: 250px;
+  line-height: 1.6;
+  letter-spacing: 0.1em;
+}
+
+#wordsInput {
+  height: 100px;
+}
+
+.solve-btn {
+  width: 100%;
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: white;
+  padding: 14px;
+  border: none;
+  border-radius: 8px;
+  font-size: 1.1em;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(245, 87, 108, 0.4);
+}
+
+.solve-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(245, 87, 108, 0.6);
+}
+
+.stats {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 20px;
+  padding: 15px;
+  background: #f8f9ff;
+  border-radius: 8px;
+}
+
+.stat-item {
+  text-align: center;
+}
+
+.stat-number {
+  font-size: 2em;
+  font-weight: bold;
+  color: #667eea;
+}
+
+.stat-label {
+  font-size: 0.85em;
+  color: #666;
+  margin-top: 5px;
+}
+
+.loading-spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-right: 10px;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes glow {
+  0%, 100% { box-shadow: 0 3px 10px rgba(240, 147, 251, 0.3); }
+  50% { box-shadow: 0 5px 25px rgba(240, 147, 251, 0.8); }
+}
+
+@media (max-width: 968px) {
+  .container {
+    grid-template-columns: 1fr;
+  }
+  
+  .header h1 {
+    font-size: 2em;
+  }
+}
+
+.sample-button {
+  margin-top: 15px;
+  background: #f8f9ff;
+  color: #667eea;
+  padding: 8px 20px;
+  border: 2px solid #667eea;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 0.9em;
+  transition: all 0.3s ease;
+}
+
+.sample-button:hover {
+  background: #667eea;
+  color: white;
+}
+
+.tip {
+  background: #e7f3ff;
+  border-left: 4px solid #2196F3;
+  padding: 12px;
+  margin-top: 10px;
+  border-radius: 4px;
+  font-size: 0.9em;
+  color: #0d47a1;
+}
+
+.section-title {
+  color: #333;
+  margin: 20px 0 10px 0;
+  font-size: 1.1em;
+  font-weight: 600;
+}
+
+.add-word-btn {
+  margin-top: 10px;
+  background: #f8f9ff;
+  color: #667eea;
+  padding: 8px 20px;
+  border: 2px solid #667eea;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 0.9em;
+  transition: all 0.3s ease;
+  width: 100%;
+}
+
+.add-word-btn:hover {
+  background: #667eea;
+  color: white;
+}
+
+.word-tags-container {
+  margin-top: 15px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.word-tag {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 8px 15px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.word-tag .remove-word {
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 1.2em;
+  transition: all 0.2s ease;
+}
+
+.word-tag .remove-word:hover {
+  transform: scale(1.3);
+}
+
+.word-tag.found {
+  background: linear-gradient(135deg, #52D17C 0%, #2ecc71 100%);
+}
+
+.word-tag.not-found {
+  background: linear-gradient(135deg, #e0e0e0 0%, #bdbdbd 100%);
+  color: #666;
+  opacity: 0.7;
+}
+</style>
+</head>
+
+<body>
+
+<div class="header">
+  <h1>🔍 Word Search Solver</h1>
+  <p>Upload your puzzle - AI extracts the grid automatically!</p>
+</div>
+
+<div class="container">
+  <div class="card">
+    <div class="upload-section" id="uploadSection">
+      <div class="upload-icon">📤</div>
+      <h3>Upload Your Word Search Image</h3>
+      <p style="margin: 10px 0; color: #666;">Drag & drop or click to browse</p>
+      <button class="upload-btn" onclick="document.getElementById('imageInput').click()">
+        Choose Image
+      </button>
+      <input type="file" id="imageInput" accept="image/*">
+      <button class="sample-button" onclick="loadSample()">Try Sample Puzzle</button>
+    </div>
+
+    <div class="canvas-container" id="canvasContainer">
+      <h3 class="section-title">📸 Original Image</h3>
+      <canvas id="canvas"></canvas>
+      
+      <h3 class="section-title">🔤 Extracted Grid</h3>
+      <canvas id="gridCanvas"></canvas>
+      
+      <div id="status"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="input-group">
+      <label>📝 Grid Letters (auto-extracted, edit if needed)</label>
+      <textarea id="gridInput" placeholder="Grid will be extracted automatically...&#10;&#10;If OCR makes mistakes, you can edit here!"></textarea>
+      <div class="tip">
+        💡 <strong>Auto OCR:</strong> Letters are extracted automatically! Compare with the image and fix any mistakes.
+      </div>
+    </div>
+
+    <div class="input-group">
+      <label>🎯 Words to Find (auto-detected + add your own)</label>
+      <textarea id="wordsInput" placeholder="Words will be auto-detected from grid...&#10;Add more words separated by commas!"></textarea>
+    </div>
+
+    <div id="wordTagsContainer" class="word-tags-container"></div>
+
+    <button class="solve-btn" onclick="solve()">🚀 Solve Puzzle</button>
+
+    <div class="stats" id="stats" style="display: none;">
+      <div class="stat-item">
+        <div class="stat-number" id="foundCount">0</div>
+        <div class="stat-label">Words Found</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-number" id="totalCount">0</div>
+        <div class="stat-label">Total Words</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const imageInput = document.getElementById("imageInput");
+const uploadSection = document.getElementById("uploadSection");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+const gridCanvas = document.getElementById("gridCanvas");
+const gridCtx = gridCanvas.getContext("2d");
+const statusText = document.getElementById("status");
+const canvasContainer = document.getElementById("canvasContainer");
+const gridInput = document.getElementById("gridInput");
+const wordsInput = document.getElementById("wordsInput");
+
+let grid = [];
+let foundPositions = {};
+let currentHighlighted = null;
+let wordsList = [];
+let wordCache = new Set();
+let isLoadingWords = false;
+
+// Common meaningful English words prioritized for word search
+const commonMeaningfulWords = new Set([
+  // 4-letter words - very common
+  'ABLE', 'ACID', 'AGED', 'AIDE', 'ALLY', 'ALSO', 'AREA', 'ARMY', 'AWAY', 'BABY', 'BACK', 'BALL', 'BAND', 'BANK', 'BASE', 'BATH', 'BEAR', 'BEAT', 'BEEN', 'BELL', 'BELT', 'BENT', 'BEST', 'BIKE', 'BILL', 'BIRD', 'BITE', 'BLOW', 'BLUE', 'BOAT', 'BODY', 'BOLD', 'BOND', 'BONE', 'BOOK', 'BORN', 'BOTH', 'BOWL', 'BULK', 'BURN', 'BUSY', 'CALL', 'CALM', 'CAME', 'CAMP', 'CARD', 'CARE', 'CART', 'CASE', 'CASH', 'CAST', 'CAVE', 'CELL', 'CENT', 'CHAT', 'CHEF', 'CHIN', 'CITY', 'CLAP', 'CLAY', 'CLIP', 'CLUB', 'COAL', 'COAT', 'CODE', 'COIL', 'COIN', 'COLD', 'COME', 'CONE', 'COOK', 'COOL', 'COPY', 'CORE', 'CORN', 'COST', 'CREW', 'CROP', 'CROW', 'CUBE', 'CURE', 'CURL', 'CUTE', 'DARK', 'DATA', 'DATE', 'DAWN', 'DEAD', 'DEAF', 'DEAL', 'DEAR', 'DECK', 'DEED', 'DEEP', 'DEER', 'DEMO', 'DESK', 'DIAL', 'DICE', 'DIET', 'DIME', 'DINE', 'DIRT', 'DISC', 'DIVE', 'DOCK', 'DOES', 'DOLL', 'DONE', 'DOOR', 'DOSE', 'DOVE', 'DOWN', 'DRAG', 'DRAW', 'DREW', 'DRIP', 'DROP', 'DRUG', 'DRUM', 'DUCK', 'DULL', 'DUMB', 'DUMP', 'DUSK', 'DUST', 'DUTY', 'EACH', 'EARL', 'EARN', 'EASE', 'EAST', 'EASY', 'ECHO', 'EDGE', 'EDIT', 'EMIT', 'ENVY', 'EPIC', 'EVEN', 'EVER', 'EVIL', 'EXAM', 'EXIT', 'FACE', 'FACT', 'FADE', 'FAIL', 'FAIR', 'FAKE', 'FALL', 'FAME', 'FARE', 'FARM', 'FAST', 'FATE', 'FEAR', 'FEAT', 'FEED', 'FEEL', 'FEET', 'FELL', 'FELT', 'FEND', 'FERN', 'FILE', 'FILL', 'FILM', 'FIND', 'FINE', 'FIRE', 'FIRM', 'FISH', 'FIST', 'FIVE', 'FLAG', 'FLAP', 'FLAT', 'FLED', 'FLEE', 'FLEW', 'FLIP', 'FLOW', 'FOAM', 'FOLD', 'FOLK', 'FOND', 'FOOD', 'FOOL', 'FOOT', 'FORK', 'FORM', 'FORT', 'FOUL', 'FOUR', 'FREE', 'FROG', 'FROM', 'FUEL', 'FULL', 'FUND', 'FUSE', 'GAIN', 'GAME', 'GANG', 'GATE', 'GAVE', 'GEAR', 'GENE', 'GIFT', 'GIRL', 'GIVE', 'GLAD', 'GLOW', 'GLUE', 'GOAT', 'GOLD', 'GOLF', 'GONE', 'GOOD', 'GRAB', 'GRAY', 'GREW', 'GREY', 'GRID', 'GRIM', 'GRIN', 'GRIP', 'GRIT', 'GROW', 'GULF', 'HACK', 'HAIL', 'HAIR', 'HALF', 'HALL', 'HALT', 'HAND', 'HANG', 'HARD', 'HARE', 'HARM', 'HARP', 'HATE', 'HAUL', 'HAVE', 'HAWK', 'HAZE', 'HAZY', 'HEAD', 'HEAL', 'HEAP', 'HEAR', 'HEAT', 'HECK', 'HEED', 'HEEL', 'HELD', 'HELL', 'HELP', 'HERE', 'HERO', 'HIDE', 'HIGH', 'HIKE', 'HILL', 'HILT', 'HINT', 'HIRE', 'HIVE', 'HOLD', 'HOLE', 'HOME', 'HOOD', 'HOOK', 'HOOP', 'HOPE', 'HORN', 'HOST', 'HOUR', 'HUGE', 'HULK', 'HUNG', 'HUNT', 'HURT', 'IDEA', 'IDLE', 'INCH', 'INTO', 'IRIS', 'IRON', 'ISLE', 'ITEM', 'JACK', 'JADE', 'JAIL', 'JAZZ', 'JEAN', 'JOKE', 'JOLT', 'JOWL', 'JULY', 'JUMP', 'JUNE', 'JUNK', 'JURY', 'JUST', 'KALE', 'KEEN', 'KEEP', 'KEPT', 'KICK', 'KIDS', 'KILL', 'KIND', 'KING', 'KISS', 'KITE', 'KNEE', 'KNEW', 'KNIT', 'KNOB', 'KNOT', 'KNOW', 'LACE', 'LACK', 'LADY', 'LAID', 'LAKE', 'LAMB', 'LAME', 'LAMP', 'LAND', 'LANE', 'LARD', 'LARK', 'LASH', 'LAST', 'LATE', 'LAVA', 'LAWN', 'LAZY', 'LEAD', 'LEAF', 'LEAK', 'LEAN', 'LEAP', 'LEFT', 'LEND', 'LENS', 'LENT', 'LESS', 'LIAR', 'LICE', 'LICK', 'LIED', 'LIFE', 'LIFT', 'LIKE', 'LIMB', 'LIME', 'LIMP', 'LINE', 'LINK', 'LINT', 'LION', 'LIST', 'LIVE', 'LOAD', 'LOAF', 'LOAN', 'LOCK', 'LOFT', 'LOGO', 'LONE', 'LONG', 'LOOK', 'LOOP', 'LOOT', 'LORD', 'LORE', 'LOSE', 'LOSS', 'LOST', 'LOUD', 'LOUT', 'LOVE', 'LUCK', 'LUMP', 'LURE', 'LURK', 'LUSH', 'LUST', 'LUTE', 'MADE', 'MAID', 'MAIL', 'MAIN', 'MAKE', 'MALE', 'MALL', 'MANE', 'MANY', 'MARK', 'MARS', 'MART', 'MASH', 'MASK', 'MASS', 'MAST', 'MATE', 'MATH', 'MAYO', 'MAZE', 'MEAD', 'MEAL', 'MEAN', 'MEAT', 'MEEK', 'MEET', 'MELD', 'MELT', 'MEMO', 'MEND', 'MENU', 'MESH', 'MESS', 'MICE', 'MILD', 'MILE', 'MILK', 'MILL', 'MIME', 'MIND', 'MINE', 'MINT', 'MIRE', 'MISS', 'MIST', 'MITE', 'MITT', 'MOAN', 'MOAT', 'MODE', 'MOLD', 'MOLE', 'MONK', 'MOOD', 'MOON', 'MOOR', 'MOPE', 'MORE', 'MORN', 'MOSS', 'MOST', 'MOTH', 'MOVE', 'MUCH', 'MULE', 'MUSE', 'MUSH', 'MUST', 'MUTE', 'MYTH', 'NAIL', 'NAME', 'NAVY', 'NEAR', 'NEAT', 'NECK', 'NEED', 'NEST', 'NEWS', 'NEXT', 'NICE', 'NICK', 'NINE', 'NODE', 'NONE', 'NOOK', 'NOON', 'NORM', 'NOSE', 'NOTE', 'NOUN', 'NUDE', 'NULL', 'NUMB', 'NUTS', 'OATH', 'OBEY', 'ODOR', 'OKAY', 'OMEN', 'OMIT', 'ONCE', 'ONLY', 'ONTO', 'OOZE', 'OPAL', 'OPEN', 'ORAL', 'ORCA', 'OVEN', 'OVER', 'OWED', 'OWES', 'OWLS', 'OWNS', 'PACE', 'PACK', 'PAGE', 'PAID', 'PAIL', 'PAIN', 'PAIR', 'PALE', 'PALM', 'PANE', 'PANG', 'PANT', 'PARK', 'PART', 'PASS', 'PAST', 'PATH', 'PAVE', 'PAWN', 'PEAK', 'PEAL', 'PEAR', 'PEAT', 'PECK', 'PEEK', 'PEEL', 'PEER', 'PELT', 'PENS', 'PENT', 'PERK', 'PEST', 'PETS', 'PIER', 'PIKE', 'PILE', 'PILL', 'PINE', 'PING', 'PINK', 'PINT', 'PIPE', 'PITY', 'PLAN', 'PLAY', 'PLEA', 'PLOT', 'PLOW', 'PLUG', 'PLUM', 'PLUS', 'POEM', 'POET', 'POKE', 'POLE', 'POLL', 'POND', 'PONY', 'POOL', 'POOR', 'POPE', 'PORE', 'PORK', 'PORT', 'POSE', 'POST', 'POUR', 'PRAY', 'PREY', 'PRIM', 'PROD', 'PROM', 'PROP', 'PROW', 'PULL', 'PULP', 'PUMP', 'PUNK', 'PURE', 'PURR', 'PUSH', 'PUTS', 'QUAD', 'QUIT', 'QUIZ', 'RACE', 'RACK', 'RAFT', 'RAGE', 'RAID', 'RAIL', 'RAIN', 'RAKE', 'RAMP', 'RANG', 'RANK', 'RARE', 'RASH', 'RATE', 'RAVE', 'RAYS', 'READ', 'REAL', 'REAM', 'REAP', 'REAR', 'REED', 'REEL', 'RELY', 'REND', 'RENT', 'REST', 'RICE', 'RICH', 'RIDE', 'RIFE', 'RIFT', 'RING', 'RINK', 'RIOT', 'RIPE', 'RISE', 'RISK', 'RITE', 'ROAD', 'ROAM', 'ROAR', 'ROBE', 'ROCK', 'RODE', 'ROLE', 'ROLL', 'ROMP', 'ROOF', 'ROOK', 'ROOM', 'ROOT', 'ROPE', 'ROSE', 'ROSY', 'ROTE', 'ROUT', 'ROVE', 'ROWS', 'RUBS', 'RUDE', 'RUIN', 'RULE', 'RUMP', 'RUNG', 'RUNS', 'RUNT', 'RUSE', 'RUSH', 'RUST', 'RUTH', 'SACK', 'SAFE', 'SAGA', 'SAGE', 'SAID', 'SAIL', 'SAKE', 'SALE', 'SALT', 'SAME', 'SAND', 'SANE', 'SANG', 'SANK', 'SASH', 'SAVE', 'SAWS', 'SAYS', 'SCAN', 'SCAR', 'SEAL', 'SEAM', 'SEAT', 'SECT', 'SEED', 'SEEK', 'SEEM', 'SEEN', 'SELF', 'SELL', 'SEMI', 'SEND', 'SENT', 'SEPT', 'SERF', 'SETS', 'SEWN', 'SHAD', 'SHAG', 'SHAM', 'SHED', 'SHIN', 'SHIP', 'SHOD', 'SHOE', 'SHOP', 'SHOT', 'SHOW', 'SHUN', 'SHUT', 'SICK', 'SIDE', 'SIFT', 'SIGH', 'SIGN', 'SILK', 'SILL', 'SILO', 'SILT', 'SINE', 'SING', 'SINK', 'SIPS', 'SITE', 'SIZE', 'SKID', 'SKIM', 'SKIN', 'SKIP', 'SKIT', 'SLAB', 'SLAG', 'SLAM', 'SLAP', 'SLAT', 'SLAW', 'SLAY', 'SLED', 'SLEW', 'SLID', 'SLIM', 'SLIP', 'SLIT', 'SLOB', 'SLOG', 'SLOP', 'SLOT', 'SLOW', 'SLUG', 'SLUM', 'SLUR', 'SMOG', 'SMUG', 'SNAG', 'SNAP', 'SNIP', 'SNOB', 'SNOW', 'SNUB', 'SNUG', 'SOAK', 'SOAP', 'SOAR', 'SOBS', 'SOCK', 'SODA', 'SOFA', 'SOFT', 'SOIL', 'SOLD', 'SOLE', 'SOLO', 'SOME', 'SONG', 'SOON', 'SOOT', 'SORE', 'SORT', 'SOUL', 'SOUP', 'SOUR', 'SPAN', 'SPAR', 'SPEC', 'SPED', 'SPEW', 'SPIN', 'SPIT', 'SPOT', 'SPRY', 'SPUD', 'STAB', 'STAG', 'STAR', 'STAT', 'STAY', 'STEM', 'STEP', 'STEW', 'STIR', 'STOP', 'STUD', 'SUCH', 'SUIT', 'SULK', 'SUMS', 'SUNG', 'SUNK', 'SUNS', 'SURE', 'SURF', 'SWAB', 'SWAG', 'SWAM', 'SWAN', 'SWAP', 'SWAY', 'SWIM', 'SWUM', 'TAIL', 'TAKE', 'TALE', 'TALK', 'TALL', 'TAME', 'TANK', 'TAPE', 'TAPS', 'TARE', 'TARP', 'TASK', 'TAUT', 'TAXI', 'TEAK', 'TEAL', 'TEAM', 'TEAR', 'TEAS', 'TEEM', 'TEEN', 'TELL', 'TEMP', 'TEND', 'TENS', 'TENT', 'TERM', 'TEST', 'TEXT', 'THAN', 'THAT', 'THAW', 'THEE', 'THEM', 'THEN', 'THEY', 'THIN', 'THIS', 'THOU', 'THUD', 'THUG', 'THUS', 'TICK', 'TIDE', 'TIDY', 'TIED', 'TIER', 'TIES', 'TILE', 'TILL', 'TILT', 'TIME', 'TINE', 'TING', 'TINT', 'TINY', 'TIPS', 'TIRE', 'TOAD', 'TOES', 'TOGS', 'TOIL', 'TOLD', 'TOLL', 'TOMB', 'TOME', 'TONE', 'TONG', 'TOOK', 'TOOL', 'TOOT', 'TOPS', 'TORE', 'TORN', 'TORT', 'TOSS', 'TOUR', 'TOUT', 'TOWN', 'TOYS', 'TRAM', 'TRAP', 'TRAY', 'TREE', 'TREK', 'TRIM', 'TRIO', 'TRIP', 'TROD', 'TROT', 'TRUE', 'TUBA', 'TUBE', 'TUCK', 'TUFT', 'TUNA', 'TUNE', 'TURF', 'TURN', 'TUSK', 'TUTU', 'TWIG', 'TWIN', 'TWIT', 'TYPE', 'UNIT', 'UNTO', 'USED', 'USER', 'USES', 'VAIN', 'VALE', 'VANE', 'VANS', 'VARY', 'VASE', 'VAST', 'VEAL', 'VEIL', 'VEIN', 'VEND', 'VENT', 'VERB', 'VERY', 'VEST', 'VETO', 'VICE', 'VIEW', 'VILE', 'VINE', 'VOID', 'VOLT', 'VOTE', 'WADE', 'WAFT', 'WAGE', 'WAIL', 'WAIT', 'WAKE', 'WALK', 'WALL', 'WAND', 'WANT', 'WARD', 'WARE', 'WARM', 'WARN', 'WARP', 'WARS', 'WART', 'WARY', 'WASH', 'WASP', 'WAVE', 'WAVY', 'WAXY', 'WAYS', 'WEAK', 'WEAR', 'WEEP', 'WELD', 'WELL', 'WENT', 'WEPT', 'WERE', 'WEST', 'WETS', 'WHAT', 'WHEN', 'WHIM', 'WHIP', 'WHIT', 'WHOM', 'WICK', 'WIDE', 'WIFE', 'WIGS', 'WILD', 'WILL', 'WILT', 'WIND', 'WINE', 'WING', 'WINK', 'WINS', 'WIPE', 'WIRE', 'WISE', 'WISH', 'WISP', 'WITH', 'WOKE', 'WOLF', 'WOMB', 'WONT', 'WOOD', 'WOOL', 'WORD', 'WORE', 'WORK', 'WORM', 'WORN', 'WRAP', 'WREN', 'WRIT', 'YARD', 'YARN', 'YAWN', 'YEAR', 'YELL', 'YOKE', 'YOUR', 'YULE', 'ZEAL', 'ZERO', 'ZEST', 'ZINC', 'ZONE', 'ZOOM',
+  // 5+ letter words - common
+  'ABOUT', 'ABOVE', 'ABUSE', 'ACUTE', 'ADAPT', 'ADMIT', 'ADOPT', 'ADULT', 'AFTER', 'AGAIN', 'AGENT', 'AGREE', 'AHEAD', 'ALARM', 'ALBUM', 'ALERT', 'ALIEN', 'ALIKE', 'ALIVE', 'ALLOW', 'ALONE', 'ALONG', 'ALTER', 'ANGEL', 'ANGER', 'ANGLE', 'ANGRY', 'APART', 'APPLE', 'APPLY', 'ARENA', 'ARGUE', 'ARISE', 'ARMOR', 'ARROW', 'ASIDE', 'ASSET', 'AVOID', 'AWAKE', 'AWARD', 'AWARE', 'BADLY', 'BEACH', 'BEARD', 'BEAST', 'BEGAN', 'BEGIN', 'BEING', 'BELOW', 'BENCH', 'BILLY', 'BIRTH', 'BLACK', 'BLADE', 'BLAME', 'BLANK', 'BLAST', 'BLEAK', 'BLEND', 'BLESS', 'BLIND', 'BLOCK', 'BLOOD', 'BOARD', 'BOAST', 'BOOST', 'BOOTH', 'BOUND', 'BRAIN', 'BRAND', 'BRASS', 'BRAVE', 'BREAD', 'BREAK', 'BREED', 'BRICK', 'BRIDE', 'BRIEF', 'BRING', 'BRINK', 'BRISK', 'BROAD', 'BROKE', 'BROOD', 'BROOK', 'BROOM', 'BROWN', 'BRUSH', 'BUILD', 'BUILT', 'BURST', 'BUYER', 'CABLE', 'CADET', 'CAMEL', 'CANAL', 'CANDY', 'CARGO', 'CAROL', 'CARRY', 'CARVE', 'CATCH', 'CAUSE', 'CEDAR', 'CHAIN', 'CHAIR', 'CHALK', 'CHARM', 'CHART', 'CHASE', 'CHEAP', 'CHEAT', 'CHECK', 'CHEEK', 'CHEER', 'CHESS', 'CHEST', 'CHICK', 'CHIEF', 'CHILD', 'CHINA', 'CHORD', 'CHORE', 'CHOSE', 'CIVIL', 'CLAIM', 'CLAMP', 'CLASS', 'CLEAN', 'CLEAR', 'CLERK', 'CLICK', 'CLIFF', 'CLIMB', 'CLOCK', 'CLONE', 'CLOSE', 'CLOTH', 'CLOUD', 'COACH', 'COAST', 'COBRA', 'COCOA', 'CODED', 'COILS', 'COINS', 'COULD', 'COUNT', 'COURT', 'COVER', 'CRACK', 'CRAFT', 'CRATE', 'CRAWL', 'CRAZY', 'CREAM', 'CREEK', 'CREEP', 'CREST', 'CRIME', 'CRISP', 'CROAK', 'CROSS', 'CROWD', 'CROWN', 'CRUDE', 'CRUEL', 'CRUSH', 'CURVE', 'CYCLE', 'DAILY', 'DAIRY', 'DAISY', 'DANCE', 'DEALT', 'DEATH', 'DEBUT', 'DECAY', 'DECOR', 'DECOY', 'DELAY', 'DELTA', 'DENSE', 'DEPTH', 'DERBY', 'DETER', 'DEVIL', 'DIARY', 'DIGIT', 'DIMLY', 'DINER', 'DIRTY', 'DISCO', 'DITCH', 'DIVER', 'DIZZY', 'DODGE', 'DOING', 'DONOR', 'DOUBT', 'DOUGH', 'DOWNS', 'DRAFT', 'DRAIN', 'DRAKE', 'DRANK', 'DRAPE', 'DREAD', 'DREAM', 'DRESS', 'DRIFT', 'DRILL', 'DRINK', 'DRIVE', 'DROLL', 'DRONE', 'DROOP', 'DROWN', 'DRUGS', 'DRUNK', 'DRYLY', 'DULLY', 'DUMMY', 'DUMPY', 'DUSTY', 'DYING', 'EAGER', 'EAGLE', 'EARLY', 'EARTH', 'EASEL', 'EATEN', 'EATER', 'EAVES', 'EBONY', 'EDGES', 'EIGHT', 'EJECT', 'ELATE', 'ELDER', 'ELECT', 'ELITE', 'ELUDE', 'EMAIL', 'EMBER', 'EMOTE', 'EMPTY', 'ENDOW', 'ENEMY', 'ENJOY', 'ENSUE', 'ENTER', 'ENTRY', 'ENVOY', 'EQUAL', 'EQUIP', 'ERASE', 'ERECT', 'ERROR', 'ERUPT', 'ESSAY', 'ETHER', 'ETHIC', 'EVENT', 'EVERY', 'EVOKE', 'EXACT', 'EXALT', 'EXCEL', 'EXERT', 'EXILE', 'EXIST', 'EXPEL', 'EXTRA', 'EXULT', 'FACET', 'FACES', 'FACTS', 'FADED', 'FAINT', 'FAIRY', 'FAITH', 'FAKER', 'FALLS', 'FALSE', 'FAMED', 'FANCY', 'FANGS', 'FARCE', 'FARES', 'FARMS', 'FATAL', 'FATED', 'FATTY', 'FAULT', 'FAUNA', 'FAVOR', 'FEAST', 'FEATS', 'FENCE', 'FERNS', 'FERRY', 'FETCH', 'FETID', 'FEVER', 'FEWER', 'FIBER', 'FIELD', 'FIEND', 'FIERY', 'FIFTH', 'FIFTY', 'FIGHT', 'FILED', 'FILER', 'FILES', 'FILET', 'FILLS', 'FILLY', 'FILMS', 'FILMY', 'FILTH', 'FINAL', 'FINCH', 'FINDS', 'FINED', 'FINES', 'FINKS', 'FIORD', 'FIRED', 'FIRES', 'FIRST', 'FISHED', 'FISHER', 'FISHES', 'FIXED', 'FIXER', 'FIXES', 'FIZZY', 'FJORD', 'FLAGS', 'FLAIL', 'FLAIR', 'FLAKE', 'FLAKY', 'FLAME', 'FLANK', 'FLAPS', 'FLARE', 'FLASH', 'FLASK', 'FLATS', 'FLAWED', 'FLAWS', 'FLEAS', 'FLECK', 'FLEDGE', 'FLEES', 'FLEET', 'FLESH', 'FLICK', 'FLIER', 'FLIES', 'FLIGHT', 'FLIMSY', 'FLINCH', 'FLINGS', 'FLINT', 'FLIPS', 'FLIRT', 'FLITS', 'FLOAT', 'FLOCK', 'FLOOD', 'FLOOR', 'FLORA', 'FLOSS', 'FLOUR', 'FLOUT', 'FLOWS', 'FLUENT', 'FLUFF', 'FLUID', 'FLUKE', 'FLUNG', 'FLUNK', 'FLUSH', 'FLUTE', 'FOAMS', 'FOAMY', 'FOCAL', 'FOCUS', 'FOILS', 'FOIST', 'FOLDS', 'FOLKS', 'FOLLOW', 'FOLLY', 'FOMENT', 'FONTS', 'FOODS', 'FOOLS', 'FORAY', 'FORCE', 'FORGO', 'FORKS', 'FORMS', 'FORTE', 'FORTH', 'FORTY', 'FORUM', 'FOSSIL', 'FOSTER', 'FOUGHT', 'FOUND', 'FOWLS', 'FOXES', 'FOYER', 'FRAIL', 'FRAME', 'FRANK', 'FRAUD', 'FREAK', 'FREED', 'FREELY', 'FREEZE', 'FRENCH', 'FRENZY', 'FRESH', 'FRETS', 'FRIDAY', 'FRIED', 'FRIEND', 'FRIGHT', 'FRINGE', 'FRISK', 'FRIZZ', 'FROGS', 'FRONT', 'FROST', 'FROSTY', 'FROTH', 'FROWN', 'FROZE', 'FROZEN', 'FRUIT', 'FRUITS', 'FRYING', 'FUDGE', 'FUGITIVE', 'FULFILL', 'FULLY', 'FUMBLE', 'FUMED', 'FUMES', 'FUNCTION', 'FUNDS', 'FUNKY', 'FUNNY', 'FURLOUGH', 'FURNACE', 'FURNISH', 'FURTHER', 'FURY', 'FUSED', 'FUSES', 'FUSION', 'FUSSY', 'FUTILE', 'FUTURE', 'FUZZY', 'GADGET', 'GAINED', 'GALAXY', 'GALLERY', 'GALLOP', 'GAMBLE', 'GANDER', 'GARAGE', 'GARDEN', 'GARLIC', 'GARMENT', 'GASPED', 'GATHER', 'GAUGED', 'GAZEBO', 'GEARED', 'GENIUS', 'GENTLE', 'GERMAN', 'GESTURE', 'GHETTO', 'GIFTED', 'GIGANTIC', 'GINGER', 'GIRAFFE', 'GIRDER', 'GIRLFRIEND', 'GLACIAL', 'GLACIER', 'GLANCE', 'GLARED', 'GLARES', 'GLASSY', 'GLAZED', 'GLAZES', 'GLEAMED', 'GLEANS', 'GELLED', 'GEMINI', 'GENDER', 'GENERAL', 'GENERIC', 'GENESIS', 'GENETIC', 'GENIAL', 'GENIUS', 'GENRE', 'GENTLE', 'GENTLY', 'GENUINE', 'GEODE', 'GERMAN', 'GERMANE', 'GESTURE', 'GETAWAY', 'GHETTO', 'GHOSTLY', 'GIANT', 'GIBBON', 'GIFTED', 'GIGANTIC', 'GIGGLED', 'GIGGLES', 'GILDED', 'GILTED', 'GINGER', 'GIRAFFE', 'GIRDED', 'GIRDER', 'GIRDLE', 'GIRLIE', 'GIRLISH', 'GLACIER', 'GLACE', 'GLADES', 'GLADLY', 'GLAMOR', 'GLANCE', 'GLANCED', 'GLANCES', 'GLANDS', 'GLARED', 'GLARES', 'GLARING', 'GLASSY', 'GLAZE', 'GLAZED', 'GLAZER', 'GLAZES', 'GLAZING', 'GLEAMED', 'GLEAMING', 'GLEAMS', 'GLEANED', 'GLEANS', 'GLEE', 'GLEEFUL', 'GLEN', 'GLENS', 'GLIB', 'GLIDE', 'GLIDED', 'GLIDER', 'GLIDES', 'GLIDING', 'GLIMMER', 'GLIMPSE', 'GLIMPSED', 'GLIMPSES', 'GLINT', 'GLINTED', 'GLINTS', 'GLISTEN', 'GLITCH', 'GLITTER', 'GLITZY', 'GLOAM', 'GLOAMING', 'GLOAT', 'GLOATED', 'GLOATING', 'GLOATS', 'GLOBAL', 'GLOBE', 'GLOBES', 'GLOOM', 'GLOOMIER', 'GLOOMILY', 'GLOOMY', 'GLORIED', 'GLORIES', 'GLORIFY', 'GLORIOUS', 'GLORY', 'GLOSS', 'GLOSSED', 'GLOSSES', 'GLOTTAL', 'GLOTTIS', 'GLOVE', 'GLOVED', 'GLOVES', 'GLOW', 'GLOWED', 'GLOWER', 'GLOWERING', 'GLOWERS', 'GLOWING', 'GLOWS', 'GLUE', 'GLUED', 'GLUES', 'GLUEY', 'GLUING', 'GLUT', 'GLUTS', 'GLUTTON', 'GLUTTONY', 'GNARLED', 'GNARLY', 'GNASH', 'GNASHED', 'GNASHES', 'GNASHING', 'GNAT', 'GNATS', 'GNAW', 'GNAWED', 'GNAWER', 'GNAWING', 'GNAWS', 'GNEISS', 'GNOCCHI', 'GNOME', 'GNOMES', 'GNOSIS', 'GNU', 'GNUS', 'GOAD', 'GOADED', 'GOADING', 'GOADS', 'GOAL', 'GOALED', 'GOALER', 'GOALS', 'GOAT', 'GOATEE', 'GOATISH', 'GOATS', 'GOATSKIN', 'GOBBET', 'GOBBLE', 'GOBBLED', 'GOBBLES', 'GOBBLING', 'GOBLET', 'GOBLETS', 'GOBLIN', 'GOBLINS', 'GOBSMACK', 'GODCHILD', 'GODDAMN', 'GODDAMNED', 'GODDESS', 'GODDAM', 'GODDAM', 'GODDAMN', 'GODDAMNED', 'GODDAM', 'GODDE', 'GODDEN', 'GODDEN', 'GODDENS', 'GODDESS', 'GODDESSES', 'GODFATHER', 'GODCHILDREN', 'GODCHILD', 'GODDAM', 'GODDAMN', 'GODDAMNED', 'GODDAM', 'GODDAMN', 'GODDE', 'GODDEN', 'GODDEN', 'GODDENS', 'GODDESS', 'GODDESSES', 'GODFATHER', 'GODFEARING', 'GODFORSAKEN', 'GODHEAD', 'GODHOOD', 'GODLESS', 'GODLESSLY', 'GODLESSNESS', 'GODLIKE', 'GODLING', 'GODLINESS', 'GODLY', 'GODMOTHER', 'GODPARENT', 'GODSEND', 'GODSHIP', 'GODSON', 'GODWIT', 'GODSENT', 'GODWIT',
+]);
+
+// Load English word list from online source
+async function loadEnglishWords() {
+  if (isLoadingWords || wordCache.size > 0) return;
+  isLoadingWords = true;
+  
+  try {
+    // Using a reliable word list API
+    const response = await fetch('https://raw.githubusercontent.com/dwyl/english-words/master/words_alpha.txt');
+    const text = await response.text();
+    const words = text.split('\n').map(w => w.trim().toUpperCase()).filter(w => w.length >= 4 && w.length <= 12);
+    
+    words.forEach(word => wordCache.add(word));
+    console.log('Loaded', wordCache.size, 'English words');
+  } catch (error) {
+    console.error('Failed to load word list:', error);
+    useBasicWordValidation();
+  }
+  isLoadingWords = false;
+}
+
+function useBasicWordValidation() {
+  // Fallback to common meaningful words only
+  commonMeaningfulWords.forEach(word => wordCache.add(word));
+}
+
+function isValidEnglishWord(word) {
+  // Prioritize common meaningful words
+  if (commonMeaningfulWords.has(word)) {
+    return true;
+  }
+  
+  // Then check dynamic word cache
+  if (wordCache.has(word)) {
+    return true;
+  }
+  
+  return false;
+}
+
+// English dictionary - common words
+const englishDictionary = new Set([
+  // Common 4-letter words
+  'ABLE', 'ACID', 'AGED', 'AIDE', 'ALLY', 'ALSO', 'AREA', 'ARMY', 'AWAY', 'BABY', 'BACK', 'BALL', 'BAND', 'BANK', 'BASE', 'BATH', 'BEAR', 'BEAT', 'BEEN', 'BELL', 'BELT', 'BENT', 'BEST', 'BIKE', 'BILL', 'BIRD', 'BITE', 'BLOW', 'BLUE', 'BOAT', 'BODY', 'BOLD', 'BOND', 'BONE', 'BOOK', 'BORN', 'BOTH', 'BOWL', 'BULK', 'BURN', 'BUSY', 'CALL', 'CALM', 'CAME', 'CAMP', 'CARD', 'CARE', 'CART', 'CASE', 'CASH', 'CAST', 'CAVE', 'CELL', 'CENT', 'CHAI', 'CHAT', 'CHEF', 'CHIN', 'CITY', 'CLAP', 'CLAY', 'CLIP', 'CLUB', 'COAL', 'COAT', 'CODE', 'COIL', 'COIN', 'COLD', 'COME', 'CONE', 'COOK', 'COOL', 'COPY', 'CORE', 'CORN', 'COST', 'CREW', 'CROP', 'CROW', 'CUBE', 'CURE', 'CURL', 'CUTE', 'DARK', 'DATA', 'DATE', 'DAWN', 'DEAD', 'DEAF', 'DEAL', 'DEAN', 'DEAR', 'DEBT', 'DECK', 'DEED', 'DEEM', 'DEEP', 'DEER', 'DELI', 'DEMO', 'DESK', 'DIAL', 'DICE', 'DIET', 'DIME', 'DINE', 'DIRT', 'DISC', 'DIVE', 'DOCK', 'DOES', 'DOLL', 'DOME', 'DONE', 'DOOR', 'DOSE', 'DOVE', 'DOWN', 'DRAG', 'DRAW', 'DREW', 'DRIP', 'DROP', 'DRUG', 'DRUM', 'DUCK', 'DULL', 'DUMB', 'DUMP', 'DUSK', 'DUST', 'DUTY', 'EACH', 'EARL', 'EARN', 'EASE', 'EAST', 'EASY', 'ECHO', 'EDGE', 'EDIT', 'EMIT', 'ENVY', 'EPIC', 'EURO', 'EVEN', 'EVER', 'EVIL', 'EXAM', 'EXIT', 'FACE', 'FACT', 'FADE', 'FAIL', 'FAIR', 'FAKE', 'FALL', 'FAME', 'FARE', 'FARM', 'FAST', 'FATE', 'FEAR', 'FEAT', 'FEED', 'FEEL', 'FEET', 'FELL', 'FELT', 'FEND', 'FERN', 'FILE', 'FILL', 'FILM', 'FIND', 'FINE', 'FIRE', 'FIRM', 'FISH', 'FIST', 'FIVE', 'FLAG', 'FLAP', 'FLAT', 'FLED', 'FLEE', 'FLEW', 'FLIP', 'FLOW', 'FOAM', 'FOLD', 'FOLK', 'FOND', 'FONT', 'FOOD', 'FOOL', 'FOOT', 'FORK', 'FORM', 'FORT', 'FOUL', 'FOUR', 'FREE', 'FROG', 'FROM', 'FUEL', 'FULL', 'FUND', 'FUSE', 'GAIN', 'GAME', 'GANG', 'GATE', 'GAVE', 'GEAR', 'GENE', 'GIFT', 'GILL', 'GIRL', 'GIVE', 'GLAD', 'GLOW', 'GLUE', 'GOAT', 'GOLD', 'GOLF', 'GONE', 'GOOD', 'GRAB', 'GRAM', 'GRAY', 'GREW', 'GREY', 'GRID', 'GRIM', 'GRIN', 'GRIP', 'GRIT', 'GROW', 'GULF', 'GURU', 'HACK', 'HAIL', 'HAIR', 'HALF', 'HALL', 'HALT', 'HAND', 'HANG', 'HARD', 'HARE', 'HARM', 'HARP', 'HATE', 'HAUL', 'HAVE', 'HAWK', 'HAZE', 'HAZY', 'HEAD', 'HEAL', 'HEAP', 'HEAR', 'HEAT', 'HECK', 'HEED', 'HEEL', 'HEIR', 'HELD', 'HELL', 'HELM', 'HELP', 'HERE', 'HERO', 'HERS', 'HIDE', 'HIGH', 'HIKE', 'HILL', 'HILT', 'HIND', 'HINT', 'HIRE', 'HIVE', 'HOAX', 'HOLD', 'HOLE', 'HOME', 'HOOD', 'HOOK', 'HOOP', 'HOPE', 'HORN', 'HOST', 'HOUR', 'HUGE', 'HULK', 'HULL', 'HUNG', 'HUNT', 'HURT', 'ICON', 'IDEA', 'IDLE', 'INCH', 'INFO', 'INTO', 'IRIS', 'IRON', 'ISLE', 'ITEM', 'JACK', 'JADE', 'JAIL', 'JAZZ', 'JEAN', 'JOKE', 'JOLT', 'JOWL', 'JOYS', 'JULY', 'JUMP', 'JUNE', 'JUNK', 'JURY', 'JUST', 'JUTE', 'KALE', 'KEEN', 'KEEP', 'KEPT', 'KICK', 'KIDS', 'KILL', 'KILO', 'KIND', 'KING', 'KISS', 'KITE', 'KNEE', 'KNEW', 'KNIT', 'KNOB', 'KNOT', 'KNOW', 'LACE', 'LACK', 'LADY', 'LAID', 'LAKE', 'LAMB', 'LAME', 'LAMP', 'LAND', 'LANE', 'LARD', 'LARK', 'LASH', 'LAST', 'LATE', 'LAUD', 'LAVA', 'LAWN', 'LAZY', 'LEAD', 'LEAF', 'LEAK', 'LEAN', 'LEAP', 'LEFT', 'LEND', 'LENS', 'LENT', 'LESS', 'LIAR', 'LICE', 'LICK', 'LIED', 'LIFE', 'LIFT', 'LIKE', 'LIMB', 'LIME', 'LIMP', 'LINE', 'LINK', 'LINT', 'LION', 'LIST', 'LIVE', 'LOAD', 'LOAF', 'LOAN', 'LOCK', 'LOFT', 'LOGO', 'LONE', 'LONG', 'LOOK', 'LOOP', 'LOOT', 'LORD', 'LORE', 'LOSE', 'LOSS', 'LOST', 'LOUD', 'LOUT', 'LOVE', 'LUCK', 'LUMP', 'LURE', 'LURK', 'LUSH', 'LUST', 'LUTE', 'MADE', 'MAID', 'MAIL', 'MAIN', 'MAKE', 'MALE', 'MALL', 'MANE', 'MANY', 'MARK', 'MARS', 'MART', 'MASH', 'MASK', 'MASS', 'MAST', 'MATE', 'MATH', 'MAYO', 'MAZE', 'MEAD', 'MEAL', 'MEAN', 'MEAT', 'MEEK', 'MEET', 'MELD', 'MELT', 'MEMO', 'MEND', 'MENU', 'MESH', 'MESS', 'MICE', 'MILD', 'MILE', 'MILK', 'MILL', 'MIME', 'MIND', 'MINE', 'MINT', 'MIRE', 'MISS', 'MIST', 'MITE', 'MITT', 'MOAN', 'MOAT', 'MODE', 'MOLD', 'MOLE', 'MONK', 'MOOD', 'MOON', 'MOOR', 'MOPE', 'MORE', 'MORN', 'MOSS', 'MOST', 'MOTH', 'MOVE', 'MUCH', 'MULE', 'MUSE', 'MUSH', 'MUSK', 'MUST', 'MUTE', 'MYTH', 'NAIL', 'NAME', 'NAVY', 'NEAR', 'NEAT', 'NECK', 'NEED', 'NEST', 'NEWS', 'NEXT', 'NICE', 'NICK', 'NINE', 'NODE', 'NONE', 'NOOK', 'NOON', 'NORM', 'NOSE', 'NOTE', 'NOUN', 'NUDE', 'NULL', 'NUMB', 'NUTS', 'OATH', 'OBEY', 'ODOR', 'OKAY', 'OMEN', 'OMIT', 'ONCE', 'ONLY', 'ONTO', 'OOZE', 'OPAL', 'OPEN', 'ORAL', 'ORCA', 'OVEN', 'OVER', 'OWED', 'OWES', 'OWLS', 'OWNS', 'PACE', 'PACK', 'PAGE', 'PAID', 'PAIL', 'PAIN', 'PAIR', 'PALE', 'PALM', 'PANE', 'PANG', 'PANT', 'PARK', 'PART', 'PASS', 'PAST', 'PATH', 'PAVE', 'PAWN', 'PEAK', 'PEAL', 'PEAR', 'PEAT', 'PECK', 'PEEK', 'PEEL', 'PEER', 'PELT', 'PENS', 'PENT', 'PERK', 'PEST', 'PETS', 'PIER', 'PIKE', 'PILE', 'PILL', 'PINE', 'PING', 'PINK', 'PINT', 'PIPE', 'PITY', 'PLAN', 'PLAY', 'PLEA', 'PLOT', 'PLOW', 'PLUG', 'PLUM', 'PLUS', 'POEM', 'POET', 'POKE', 'POLE', 'POLL', 'POND', 'PONY', 'POOL', 'POOR', 'POPE', 'PORE', 'PORK', 'PORT', 'POSE', 'POST', 'POUR', 'PRAY', 'PREY', 'PRIM', 'PROD', 'PROM', 'PROP', 'PROW', 'PULL', 'PULP', 'PUMP', 'PUNK', 'PURE', 'PURR', 'PUSH', 'PUTS', 'QUAD', 'QUIT', 'QUIZ', 'RACE', 'RACK', 'RAFT', 'RAGE', 'RAID', 'RAIL', 'RAIN', 'RAKE', 'RAMP', 'RANG', 'RANK', 'RARE', 'RASH', 'RATE', 'RAVE', 'RAYS', 'READ', 'REAL', 'REAM', 'REAP', 'REAR', 'REED', 'REEL', 'RELY', 'REND', 'RENT', 'REST', 'RICE', 'RICH', 'RIDE', 'RIFE', 'RIFT', 'RING', 'RINK', 'RIOT', 'RIPE', 'RISE', 'RISK', 'RITE', 'ROAD', 'ROAM', 'ROAR', 'ROBE', 'ROCK', 'RODE', 'ROLE', 'ROLL', 'ROMP', 'ROOF', 'ROOK', 'ROOM', 'ROOT', 'ROPE', 'ROSE', 'ROSY', 'ROTE', 'ROUT', 'ROVE', 'ROWS', 'RUBS', 'RUDE', 'RUIN', 'RULE', 'RUMP', 'RUNG', 'RUNS', 'RUNT', 'RUSE', 'RUSH', 'RUST', 'RUTH', 'SACK', 'SAFE', 'SAGA', 'SAGE', 'SAID', 'SAIL', 'SAKE', 'SALE', 'SALT', 'SAME', 'SAND', 'SANE', 'SANG', 'SANK', 'SASH', 'SAVE', 'SAWS', 'SAYS', 'SCAN', 'SCAR', 'SEAL', 'SEAM', 'SEAT', 'SECT', 'SEED', 'SEEK', 'SEEM', 'SEEN', 'SELF', 'SELL', 'SEMI', 'SEND', 'SENT', 'SEPT', 'SERF', 'SETS', 'SEWN', 'SHAD', 'SHAG', 'SHAM', 'SHED', 'SHIN', 'SHIP', 'SHOD', 'SHOE', 'SHOP', 'SHOT', 'SHOW', 'SHUN', 'SHUT', 'SICK', 'SIDE', 'SIFT', 'SIGH', 'SIGN', 'SILK', 'SILL', 'SILO', 'SILT', 'SINE', 'SING', 'SINK', 'SIPS', 'SITE', 'SIZE', 'SKID', 'SKIM', 'SKIN', 'SKIP', 'SKIT', 'SLAB', 'SLAG', 'SLAM', 'SLAP', 'SLAT', 'SLAW', 'SLAY', 'SLED', 'SLEW', 'SLID', 'SLIM', 'SLIP', 'SLIT', 'SLOB', 'SLOG', 'SLOP', 'SLOT', 'SLOW', 'SLUG', 'SLUM', 'SLUR', 'SMOG', 'SMUG', 'SNAG', 'SNAP', 'SNIP', 'SNOB', 'SNOW', 'SNUB', 'SNUG', 'SOAK', 'SOAP', 'SOAR', 'SOBS', 'SOCK', 'SODA', 'SOFA', 'SOFT', 'SOIL', 'SOLD', 'SOLE', 'SOLO', 'SOME', 'SONG', 'SOON', 'SOOT', 'SORE', 'SORT', 'SOUL', 'SOUP', 'SOUR', 'SPAN', 'SPAR', 'SPEC', 'SPED', 'SPEW', 'SPIN', 'SPIT', 'SPOT', 'SPRY', 'SPUD', 'STAB', 'STAG', 'STAR', 'STAT', 'STAY', 'STEM', 'STEP', 'STEW', 'STIR', 'STOP', 'STUD', 'SUCH', 'SUIT', 'SULK', 'SUMS', 'SUNG', 'SUNK', 'SUNS', 'SURE', 'SURF', 'SWAB', 'SWAG', 'SWAM', 'SWAN', 'SWAP', 'SWAY', 'SWIM', 'SWUM', 'TAIL', 'TAKE', 'TALE', 'TALK', 'TALL', 'TAME', 'TANK', 'TAPE', 'TAPS', 'TARE', 'TARP', 'TASK', 'TAUT', 'TAXI', 'TEAK', 'TEAL', 'TEAM', 'TEAR', 'TEAS', 'TEEM', 'TEEN', 'TELL', 'TEMP', 'TEND', 'TENS', 'TENT', 'TERM', 'TEST', 'TEXT', 'THAN', 'THAT', 'THAW', 'THEE', 'THEM', 'THEN', 'THEY', 'THIN', 'THIS', 'THOU', 'THUD', 'THUG', 'THUS', 'TICK', 'TIDE', 'TIDY', 'TIED', 'TIER', 'TIES', 'TILE', 'TILL', 'TILT', 'TIME', 'TINE', 'TING', 'TINT', 'TINY', 'TIPS', 'TIRE', 'TOAD', 'TOES', 'TOGS', 'TOIL', 'TOLD', 'TOLL', 'TOMB', 'TOME', 'TONE', 'TONG', 'TOOK', 'TOOL', 'TOOT', 'TOPS', 'TORE', 'TORN', 'TORT', 'TOSS', 'TOUR', 'TOUT', 'TOWN', 'TOYS', 'TRAM', 'TRAP', 'TRAY', 'TREE', 'TREK', 'TRIM', 'TRIO', 'TRIP', 'TROD', 'TROT', 'TRUE', 'TUBA', 'TUBE', 'TUCK', 'TUFT', 'TUNA', 'TUNE', 'TURF', 'TURN', 'TUSK', 'TUTU', 'TWIG', 'TWIN', 'TWIT', 'TYPE', 'UNIT', 'UNTO', 'USED', 'USER', 'USES', 'VAIN', 'VALE', 'VANE', 'VANS', 'VARY', 'VASE', 'VAST', 'VEAL', 'VEIL', 'VEIN', 'VEND', 'VENT', 'VERB', 'VERY', 'VEST', 'VETO', 'VICE', 'VIEW', 'VILE', 'VINE', 'VOID', 'VOLT', 'VOTE', 'WADE', 'WAFT', 'WAGE', 'WAIL', 'WAIT', 'WAKE', 'WALK', 'WALL', 'WAND', 'WANT', 'WARD', 'WARE', 'WARM', 'WARN', 'WARP', 'WARS', 'WART', 'WARY', 'WASH', 'WASP', 'WAVE', 'WAVY', 'WAXY', 'WAYS', 'WEAK', 'WEAR', 'WEEP', 'WELD', 'WELL', 'WENT', 'WEPT', 'WERE', 'WEST', 'WETS', 'WHAT', 'WHEN', 'WHIM', 'WHIP', 'WHIT', 'WHOM', 'WICK', 'WIDE', 'WIFE', 'WIGS', 'WILD', 'WILL', 'WILT', 'WIND', 'WINE', 'WING', 'WINK', 'WINS', 'WIPE', 'WIRE', 'WISE', 'WISH', 'WISP', 'WITH', 'WOKE', 'WOLF', 'WOMB', 'WONT', 'WOOD', 'WOOL', 'WORD', 'WORE', 'WORK', 'WORM', 'WORN', 'WRAP', 'WREN', 'WRIT', 'YARD', 'YARN', 'YAWN', 'YEAR', 'YELL', 'YOKE', 'YOUR', 'YOUTHFUL', 'YULE', 'ZEAL', 'ZERO', 'ZEST', 'ZINC', 'ZONE', 'ZOOM',
+  // Common 5+ letter words
+  'ABOUT', 'ABOVE', 'ABUSE', 'ACUTE', 'ADAPT', 'ADDED', 'ADMIT', 'ADOPT', 'ADULT', 'AFTER', 'AGAIN', 'AGENT', 'AGREE', 'AHEAD', 'ALARM', 'ALBUM', 'ALERT', 'ALIEN', 'ALIKE', 'ALIVE', 'ALLOW', 'ALONE', 'ALONG', 'ALTER', 'ANGEL', 'ANGER', 'ANGLE', 'ANGRY', 'APART', 'APPLE', 'APPLY', 'ARENA', 'ARGUE', 'ARISE', 'ARMOR', 'ARROW', 'ASIDE', 'ASSET', 'AVOID', 'AWAKE', 'AWARD', 'AWARE', 'BADLY', 'BEACH', 'BEARD', 'BEAST', 'BEGAN', 'BEGIN', 'BEING', 'BELOW', 'BENCH', 'BILLY', 'BIRTH', 'BLACK', 'BLADE', 'BLAME', 'BLANK', 'BLAST', 'BLEAK', 'BLEND', 'BLESS', 'BLIND', 'BLOCK', 'BLOOD', 'BOARD', 'BOAST', 'BOKEN', 'BOOST', 'BOOTH', 'BOUND', 'BRAIN', 'BRAND', 'BRASS', 'BRAVE', 'BREAD', 'BREAK', 'BREED', 'BRICK', 'BRIDE', 'BRIEF', 'BRING', 'BRINK', 'BRISK', 'BROAD', 'BROKE', 'BROOD', 'BROOK', 'BROOM', 'BROWN', 'BRUSH', 'BUILD', 'BUILT', 'BURST', 'BUYER', 'CABLE', 'CADET', 'CALIF', 'CAMEL', 'CANAL', 'CANDY', 'CARED', 'CARGO', 'CAROL', 'CARRY', 'CARVE', 'CATCH', 'CAUSE', 'CEDAR', 'CHAIN', 'CHAIR', 'CHALK', 'CHARM', 'CHART', 'CHASE', 'CHEAP', 'CHEAT', 'CHECK', 'CHEEK', 'CHEER', 'CHESS', 'CHEST', 'CHICK', 'CHIEF', 'CHILD', 'CHINA', 'CHORD', 'CHORE', 'CHOSE', 'CIVIL', 'CLAIM', 'CLAMP', 'CLARA', 'CLASS', 'CLEAN', 'CLEAR', 'CLERK', 'CLICK', 'CLIFF', 'CLIMB', 'CLOCK', 'CLONE', 'CLOSE', 'CLOTH', 'CLOUD', 'COACH', 'COAST', 'COATS', 'COBRA', 'COCOA', 'CODED', 'COFFE', 'COIL', 'COINS', 'COULD', 'COUNT', 'COURT', 'COVER', 'CRACK', 'CRAFT', 'CRATE', 'CRAWL', 'CRAZY', 'CREAM', 'CREEK', 'CREEP', 'CREST', 'CREW', 'CRIME', 'CRISP', 'CROAK', 'CROCK', 'CROSS', 'CROWD', 'CROWN', 'CRUDE', 'CRUEL', 'CRUSH', 'CURVE', 'CYCLE', 'DAILY', 'DAIRY', 'DAISY', 'DANCE', 'DARED', 'DARK', 'DEALT', 'DEATH', 'DEBUT', 'DECAY', 'DECOR', 'DECOY', 'DELAY', 'DEALT', 'DELTA', 'DELVE', 'DENSE', 'DEPTH', 'DERBY', 'DETER', 'DEUCE', 'DEVIL', 'DIARY', 'DIESEL', 'DIGIT', 'DIMLY', 'DINER', 'DIRTY', 'DISCO', 'DITCH', 'DIVER', 'DIZZY', 'DODGE', 'DOING', 'DOLL', 'DONOR', 'DOUBT', 'DOUGH', 'DOWEL', 'DOWNS', 'DRAFT', 'DRAIN', 'DRAKE', 'DRANK', 'DRAPE', 'DREAD', 'DREAM', 'DRESS', 'DRIED', 'DRIFT', 'DRILL', 'DRINK', 'DRIVE', 'DROLL', 'DRONE', 'DROOP', 'DROWN', 'DRUGS', 'DRUNK', 'DRYLY', 'DULLY', 'DUMMY', 'DUMPY', 'DUSTY', 'DYING', 'EAGER', 'EAGLE', 'EARLY', 'EARTH', 'EASEL', 'EATEN', 'EATER', 'EAVES', 'EBONY', 'EDGES', 'EDIFY', 'EDICT', 'EIGHT', 'EJECT', 'ELATE', 'ELDER', 'ELECT', 'ELEGANCE', 'ELITE', 'ELUDE', 'EMAIL', 'EMBER', 'EMERALD', 'EMOTE', 'EMPTY', 'ENDOW', 'ENEMY', 'ENJOY', 'ENSUE', 'ENTER', 'ENTRY', 'ENVOY', 'EQUAL', 'EQUIP', 'ERASE', 'ERECT', 'ERROR', 'ERUPT', 'ESSAY', 'ETHER', 'ETHIC', 'EVENT', 'EVERY', 'EVOKE', 'EXACT', 'EXALT', 'EXCEL', 'EXERT', 'EXILE', 'EXIST', 'EXPEL', 'EXTOL', 'EXTRA', 'EXULT', 'FACET', 'FACES', 'FACTS', 'FADED', 'FAINT', 'FAIRY', 'FAITH', 'FAKER', 'FALLS', 'FALSE', 'FAMED', 'FANCY', 'FANGS', 'FARCE', 'FARES', 'FARMS', 'FATAL', 'FATED', 'FATTY', 'FAULT', 'FAUNA', 'FAVOR', 'FAXED', 'FEAST', 'FEATS', 'FECAL', 'FEDEX', 'FEIGN', 'FEINT', 'FELINE', 'FELLA', 'FELON', 'FELTS', 'FENCE', 'FERNS', 'FERRY', 'FETCH', 'FETID', 'FETUS', 'FEVER', 'FEWER', 'FIBER', 'FIELD', 'FIEND', 'FIERY', 'FIFTH', 'FIFTY', 'FIGHT', 'FILED', 'FILER', 'FILES', 'FILET', 'FILLS', 'FILLY', 'FILMS', 'FILMY', 'FILTH', 'FINAL', 'FINCH', 'FINDS', 'FINED', 'FINES', 'FINKS', 'FIORD', 'FIRED', 'FIRER', 'FIRES', 'FIRKS', 'FIRM', 'FISCAL', 'FIRST', 'FISHED', 'FISHER', 'FISHES', 'FIST', 'FITS', 'FIXED', 'FIXER', 'FIXES', 'FIZZY', 'FJORD', 'FLACK', 'FLAGS', 'FLAIL', 'FLAIR', 'FLAKE', 'FLAKY', 'FLAME', 'FLANK', 'FLAPS', 'FLARE', 'FLASH', 'FLASK', 'FLATS', 'FLAWED', 'FLAWS', 'FLEAS', 'FLECK', 'FLEDGE', 'FLED', 'FLEES', 'FLEET', 'FLESH', 'FLICK', 'FLIER', 'FLIES', 'FLIGHT', 'FLIGHTY', 'FLIMSY', 'FLINCH', 'FLINGS', 'FLINT', 'FLIP', 'FLIPS', 'FLIRT', 'FLIT', 'FLITS', 'FLOAT', 'FLOCK', 'FLOE', 'FLOOD', 'FLOOR', 'FLOP', 'FLORA', 'FLOSS', 'FLOUR', 'FLOUT', 'FLOW', 'FLOWN', 'FLOWS', 'FLUENT', 'FLUFF', 'FLUID', 'FLUKE', 'FLUNG', 'FLUNK', 'FLUSH', 'FLUTE', 'FOALS', 'FOAM', 'FOAMY', 'FOCAL', 'FOCUS', 'FOIBLE', 'FOILS', 'FOIST', 'FOLDS', 'FOLIAGE', 'FOLKS', 'FOLLOW', 'FOLLY', 'FOMENT', 'FONTS', 'FOODS', 'FOOLS', 'FORAY', 'FORCE', 'FORD', 'FORDS', 'FORGE', 'FORGO', 'FORKS', 'FORMS', 'FORTE', 'FORTH', 'FORTY', 'FORUM', 'FOSSIL', 'FOSTER', 'FOUGHT', 'FOUL', 'FOULED', 'FOUL', 'FOUND', 'FOUNTAIN', 'FOUR', 'FOWL', 'FOXES', 'FOYER', 'FRAIL', 'FRAME', 'FRANK', 'FRAUD', 'FREAK', 'FREED', 'FREELY', 'FREEWAY', 'FREEZE', 'FREIGHT', 'FRENCH', 'FRENZY', 'FRESH', 'FRET', 'FRETS', 'FRIDAY', 'FRIED', 'FRIEND', 'FRIGHT', 'FRINGE', 'FRISK', 'FRIZZ', 'FROG', 'FROGS', 'FROLICS', 'FROM', 'FRONT', 'FROST', 'FROSTY', 'FROTH', 'FROWN', 'FROZE', 'FROZEN', 'FRUIT', 'FRUITS', 'FRUSTRATED', 'FRYING', 'FUDGE', 'FUGITIVE', 'FULFILL', 'FULFILLED', 'FULL', 'FULLY', 'FUMBLE', 'FUMED', 'FUMES', 'FUMIGATION', 'FUNCTION', 'FUND', 'FUNDED', 'FUNDS', 'FUNERAL', 'FUNGI', 'FUNKY', 'FUNNY', 'FUR', 'FURLOUGH', 'FURNACE', 'FURNISH', 'FURNITURE', 'FURROW', 'FURTHER', 'FURY', 'FUSED', 'FUSES', 'FUSION', 'FUSS', 'FUSSY', 'FUSSY', 'FUTILE', 'FUTURE', 'FUZZY'
+]);
+
+// Real-time grid preview with auto-find
+gridInput.addEventListener('input', () => {
+  updateGridPreview();
+  if (wordsList.length > 0) {
+    autoFindWords();
+  }
+});
+
+// Update words when user types in words input
+wordsInput.addEventListener('input', () => {
+  updateWordsList();
+  if (grid.length > 0) {
+    autoFindWords();
+  }
+});
+
+function updateGridPreview() {
+  const text = gridInput.value.toUpperCase();
+  if (!text.trim()) {
+    return;
+  }
+  
+  const lines = text.split('\n').filter(line => line.trim());
+  grid = lines.map(line => line.replace(/\s/g, '').split(''));
+  
+  if (grid.length > 0) {
+    drawGrid();
+  }
+}
+
+function updateWordsList() {
+  const input = wordsInput.value.trim();
+  
+  const words = input
+    .toUpperCase()
+    .split(',')
+    .map(w => w.trim())
+    .filter(w => w.length > 0);
+  
+  wordsList = words;
+  renderWordTags();
+}
+
+function renderWordTags() {
+  const container = document.getElementById('wordTagsContainer');
+  container.innerHTML = '';
+
+  wordsList.forEach(word => {
+    const tag = document.createElement('div');
+    tag.className = 'word-tag';
+    
+    if (foundPositions[word]) {
+      tag.classList.add('found');
+    } else {
+      tag.classList.add('not-found');
+    }
+
+    tag.innerHTML = word;
+    
+    container.appendChild(tag);
+  });
+}
+
+function autoFindWords() {
+  foundPositions = {};
+  
+  wordsList.forEach(word => {
+    const pos = findWord(grid, word);
+    if (pos) {
+      foundPositions[word] = pos;
+    }
+  });
+
+  renderWordTags();
+  drawGrid();
+  highlightAllWords();
+}
+
+// Drag and drop
+uploadSection.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  uploadSection.classList.add('dragover');
+});
+
+uploadSection.addEventListener('dragleave', () => {
+  uploadSection.classList.remove('dragover');
+});
+
+uploadSection.addEventListener('drop', (e) => {
+  e.preventDefault();
+  uploadSection.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) {
+    handleImage(file);
+  }
+});
+
+uploadSection.addEventListener('click', (e) => {
+  if (e.target.tagName !== 'BUTTON') {
+    imageInput.click();
+  }
+});
+
+imageInput.addEventListener("change", () => {
+  const file = imageInput.files[0];
+  if (file) {
+    handleImage(file);
+  }
+});
+
+async function handleImage(file) {
+  const img = new Image();
+  img.src = URL.createObjectURL(file);
+
+  img.onload = async () => {
+    canvasContainer.style.display = 'block';
+    
+    // Display original image
+    const maxWidth = 600;
+    const scale = img.width > maxWidth ? maxWidth / img.width : 1;
+    canvas.width = img.width * scale;
+    canvas.height = img.height * scale;
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+    // Start OCR
+    statusText.innerHTML = '<span class="loading-spinner"></span>Extracting grid with AI OCR...';
+    statusText.classList.add('show');
+    statusText.classList.remove('success', 'error');
+
+    try {
+      await performOCR(img);
+    } catch (error) {
+      console.error(error);
+      statusText.innerHTML = '❌ OCR failed. Please enter grid manually.';
+      statusText.classList.add('error');
+      statusText.classList.remove('show');
+    }
+  };
+}
+
+async function performOCR(img) {
+  // Create preprocessing canvas
+  const tempCanvas = document.createElement('canvas');
+  const tempCtx = tempCanvas.getContext('2d');
+  
+  // Upscale image for better OCR accuracy
+  const scale = 2;
+  tempCanvas.width = img.width * scale;
+  tempCanvas.height = img.height * scale;
+  tempCtx.scale(scale, scale);
+  tempCtx.drawImage(img, 0, 0);
+
+  // Enhanced preprocessing with multiple techniques
+  let imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+  const data = imageData.data;
+
+  // Step 1: Convert to grayscale
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+    data[i] = data[i + 1] = data[i + 2] = gray;
+  }
+
+  // Step 2: Apply bilateral filter effect (preserve edges, reduce noise)
+  const filtered = new Uint8ClampedArray(data);
+  for (let i = 0; i < data.length; i += 4) {
+    if (i % 4 === 0) {
+      const neighbors = [];
+      for (let offset = -8; offset <= 8; offset += 4) {
+        if (i + offset >= 0 && i + offset < data.length) {
+          neighbors.push(data[i + offset]);
+        }
+      }
+      const avg = Math.round(neighbors.reduce((a, b) => a + b, 0) / neighbors.length);
+      filtered[i] = filtered[i + 1] = filtered[i + 2] = avg;
+    }
+  }
+
+  // Copy back
+  for (let i = 0; i < data.length; i += 4) {
+    data[i] = data[i + 1] = data[i + 2] = filtered[i];
+  }
+
+  // Step 3: Adaptive histogram equalization
+  for (let i = 0; i < data.length; i += 4) {
+    let val = data[i];
+    val = ((val - 128) * 2.2) + 128;
+    val = Math.max(0, Math.min(255, val));
+    
+    // Adaptive thresholding
+    const threshold = 140;
+    val = val > threshold ? 255 : (val < 60 ? 0 : val);
+    
+    data[i] = data[i + 1] = data[i + 2] = val;
+  }
+
+  tempCtx.putImageData(imageData, 0, 0);
+
+  // Run Tesseract OCR with optimized settings
+  const result = await Tesseract.recognize(tempCanvas, 'eng', {
+    logger: m => {
+      if (m.status === 'recognizing text') {
+        const percent = Math.round(m.progress * 100);
+        statusText.innerHTML = `<span class="loading-spinner"></span>Extracting... ${percent}%`;
+      }
+    },
+    tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+    tessedit_pageseg_mode: Tesseract.PSM.SPARSE_TEXT,
+    tessedit_ocr_engine_mode: Tesseract.OEM.LSTM_ONLY
+  });
+
+  // Process OCR result - extract ALL text
+  const rawText = result.data.text;
+  console.log('Raw OCR output:', rawText);
+  console.log('OCR Confidence:', result.data.confidence);
+
+  // Extract text from all available sources
+  let allLines = [];
+  
+  // Method 1: Direct text splitting
+  const directLines = rawText.split('\n').filter(l => l.trim().length > 0);
+  
+  // Method 2: Word-level extraction for better accuracy
+  const words = result.data.words || [];
+  const lineMap = {};
+  
+  words.forEach(word => {
+    if (word.confidence > 40 && /^[A-Z]+$/.test(word.text.toUpperCase())) {
+      const lineKey = Math.round(word.bbox.y0 / 12); // Pixel-based line detection
+      if (!lineMap[lineKey]) lineMap[lineKey] = [];
+      lineMap[lineKey].push({
+        text: word.text.toUpperCase(),
+        x: word.bbox.x0
+      });
+    }
+  });
+
+  // Sort by Y position and reconstruct lines
+  const sortedLines = Object.keys(lineMap)
+    .sort((a, b) => parseInt(a) - parseInt(b))
+    .map(key => {
+      const lineWords = lineMap[key].sort((a, b) => a.x - b.x);
+      return lineWords.map(w => w.text).join('');
+    });
+
+  allLines = sortedLines.length > directLines.length ? sortedLines : directLines;
+
+  console.log('Extracted lines:', allLines);
+
+  if (allLines.length === 0) {
+    throw new Error('No text detected');
+  }
+
+  // Determine grid dimensions
+  const lineLengths = allLines.map(l => l.replace(/\s/g, '').length);
+  const lengthCounts = {};
+  
+  lineLengths.forEach(len => {
+    if (len > 2) {
+      lengthCounts[len] = (lengthCounts[len] || 0) + 1;
+    }
+  });
+
+  let targetLength = 0;
+  let maxCount = 0;
+  
+  for (let len in lengthCounts) {
+    if (lengthCounts[len] > maxCount) {
+      maxCount = lengthCounts[len];
+      targetLength = parseInt(len);
+    }
+  }
+
+  console.log('Target grid width:', targetLength, 'Occurrences:', maxCount);
+
+  if (targetLength < 3) {
+    throw new Error('Invalid grid dimensions');
+  }
+
+  // Normalize and clean grid lines
+  const gridLines = allLines
+    .map(line => line.replace(/\s/g, '').toUpperCase())
+    .filter(line => line.length >= targetLength - 2)
+    .map(line => {
+      if (line.length > targetLength) {
+        return line.substring(0, targetLength);
+      } else if (line.length < targetLength) {
+        return line.padEnd(targetLength, 'A');
+      }
+      return line;
+    });
+
+  console.log('Final grid:', gridLines);
+
+  if (gridLines.length < 3) {
+    throw new Error('Could not extract sufficient grid lines');
+  }
+
+  // Display result
+  const gridText = gridLines.join('\n');
+  gridInput.value = gridText;
+  
+  // Update preview
+  grid = gridLines.map(line => line.split(''));
+  drawGrid();
+  
+  // Auto-detect common words from grid
+  autoDetectWords();
+
+  statusText.innerHTML = '✅ Grid extracted! Words auto-detected. Add more if needed.';
+  statusText.classList.add('success');
+  statusText.classList.remove('show');
+  
+  setTimeout(() => {
+    statusText.style.display = 'none';
+  }, 5000);
+}
+
+function autoDetectWords() {
+  const minWordLength = 4;
+  const maxWordLength = 12;
+  
+  const directions = [
+    [0, 1], [1, 0], [0, -1], [-1, 0],
+    [1, 1], [1, -1], [-1, 1], [-1, -1]
+  ];
+
+  const foundWordsSet = new Set();
+
+  // Scan grid for words in all directions
+  for (let r = 0; r < grid.length; r++) {
+    for (let c = 0; c < grid[r].length; c++) {
+      for (let [dr, dc] of directions) {
+        for (let len = minWordLength; len <= maxWordLength; len++) {
+          let word = '';
+          let valid = true;
+
+          for (let i = 0; i < len; i++) {
+            const nr = r + dr * i;
+            const nc = c + dc * i;
+
+            if (nr < 0 || nr >= grid.length || nc < 0 || nc >= grid[nr].length) {
+              valid = false;
+              break;
+            }
+
+            word += grid[nr][nc];
+          }
+
+          // Only add words that are valid English words - prioritize common meaningful words
+          if (valid && word.length >= minWordLength && isValidEnglishWord(word)) {
+            foundWordsSet.add(word);
+          }
+        }
+      }
+    }
+  }
+
+  // Sort: prioritize common words first, then by alphabetical order
+  const detectedList = Array.from(foundWordsSet)
+    .sort((a, b) => {
+      const aIsCommon = commonMeaningfulWords.has(a);
+      const bIsCommon = commonMeaningfulWords.has(b);
+      
+      if (aIsCommon && !bIsCommon) return -1;
+      if (!aIsCommon && bIsCommon) return 1;
+      return a.localeCompare(b);
+    })
+    .slice(0, 20); // Increase limit to show more quality words
+
+  if (detectedList.length > 0) {
+    wordsInput.value = detectedList.join(', ');
+    updateWordsList();
+    autoFindWords();
+  }
+}
+
+function drawGrid() {
+  if (grid.length === 0) return;
+  
+  const cellSize = 35;
+  const cols = Math.max(...grid.map(row => row.length));
+  const rows = grid.length;
+  
+  gridCanvas.width = cols * cellSize;
+  gridCanvas.height = rows * cellSize;
+
+  gridCtx.fillStyle = '#ffffff';
+  gridCtx.fillRect(0, 0, gridCanvas.width, gridCanvas.height);
+
+  gridCtx.font = "bold 18px 'Courier New'";
+  gridCtx.textAlign = "center";
+  gridCtx.textBaseline = "middle";
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < (grid[r]?.length || 0); c++) {
+      gridCtx.fillStyle = '#f8f9ff';
+      gridCtx.fillRect(c * cellSize + 1, r * cellSize + 1, cellSize - 2, cellSize - 2);
+      
+      gridCtx.strokeStyle = '#e0e0e0';
+      gridCtx.lineWidth = 1;
+      gridCtx.strokeRect(c * cellSize, r * cellSize, cellSize, cellSize);
+      
+      gridCtx.fillStyle = '#333';
+      gridCtx.fillText(grid[r][c] || '', c * cellSize + cellSize / 2, r * cellSize + cellSize / 2);
+    }
+  }
+}
+
+function loadSample() {
+  const sampleGrid = `FORWARDXYZ
+MZBSWIMQRT
+AOCGPYTHEN
+THINKDRAWU
+HAPPYJOYCE
+BCODELIFEM`;
+
+  gridInput.value = sampleGrid;
+  wordsList = [];
+  foundPositions = {};
+  wordsInput.value = '';
+  document.getElementById('wordTagsContainer').innerHTML = '';
+
+  grid = sampleGrid.split('\n').map(line => line.split(''));
+  drawGrid();
+  canvasContainer.style.display = 'block';
+
+  // Auto-detect sample words
+  autoDetectWords();
+
+  statusText.innerHTML = '🎯 Sample loaded! Words auto-detected.';
+  statusText.classList.add('success');
+  statusText.style.display = 'block';
+  setTimeout(() => statusText.style.display = 'none', 3000);
+}
+
+function solve() {
+  if (wordsList.length === 0) {
+    alert('Please add words to find!');
+    return;
+  }
+
+  const gridLines = gridInput.value.trim().split("\n");
+  if (!gridLines[0]) {
+    alert('Please upload an image or enter a grid first!');
+    return;
+  }
+  
+  grid = gridLines.map(line => line.replace(/\s/g, '').toUpperCase().split(""));
+
+  autoFindWords();
+
+  let foundCount = 0;
+  wordsList.forEach(word => {
+    if (foundPositions[word]) {
+      foundCount++;
+    }
+  });
+
+  document.getElementById('stats').style.display = 'flex';
+  document.getElementById('foundCount').textContent = foundCount;
+  document.getElementById('totalCount').textContent = wordsList.length;
+
+  drawGrid();
+  highlightAllWords();
+  canvasContainer.style.display = 'block';
+}
+
+function highlightAllWords() {
+  if (Object.keys(foundPositions).length === 0) return;
+
+  const cellSize = 35;
+  const colors = [
+    '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8',
+    '#F7DC6F', '#BB8FCE', '#85C1E2', '#F8B739', '#52D17C'
+  ];
+
+  let colorIndex = 0;
+
+  Object.entries(foundPositions).forEach(([word, positions]) => {
+    const color = colors[colorIndex % colors.length];
+    colorIndex++;
+
+    // Draw only circles at each letter (no connecting lines)
+    gridCtx.fillStyle = color + '60';
+    gridCtx.strokeStyle = color;
+    gridCtx.lineWidth = 2;
+
+    positions.forEach(([r, c]) => {
+      gridCtx.beginPath();
+      gridCtx.arc(c * cellSize + cellSize / 2, r * cellSize + cellSize / 2, cellSize / 2.5, 0, Math.PI * 2);
+      gridCtx.fill();
+      gridCtx.stroke();
+    });
+  });
+}
+
+const directions = [
+  [0, 1], [1, 0], [0, -1], [-1, 0],
+  [1, 1], [1, -1], [-1, 1], [-1, -1]
+];
+
+function findWord(grid, word) {
+  const rows = grid.length;
+  if (rows === 0 || word.length === 0) return null;
+  
+  const firstLetter = word[0];
+  
+  for (let r = 0; r < rows; r++) {
+    const cols = grid[r].length;
+    for (let c = 0; c < cols; c++) {
+      if (grid[r][c] !== firstLetter) continue;
+      
+      for (let [dr, dc] of directions) {
+        let positions = [];
+        let found = true;
+        
+        const endR = r + dr * (word.length - 1);
+        const endC = c + dc * (word.length - 1);
+        
+        if (endR < 0 || endR >= rows || endC < 0 || endC >= (grid[endR]?.length || 0)) {
+          continue;
+        }
+        
+        for (let i = 0; i < word.length; i++) {
+          const nr = r + dr * i;
+          const nc = c + dc * i;
+          
+          if (grid[nr][nc] !== word[i]) {
+            found = false;
+            break;
+          }
+          
+          positions.push([nr, nc]);
+        }
+        
+        if (found) {
+          return positions;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+// Initialize word list on page load
+window.addEventListener('load', () => {
+  loadEnglishWords();
+});
+</script>
+
+</body>
+</html>
