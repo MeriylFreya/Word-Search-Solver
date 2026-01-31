@@ -1,8 +1,9 @@
-# 🔍 Word Hunt - AI Powered
+# 🔍 Word Search Solver - AI Powered
+wordsearchsolver.netlify.app
 
 ## What is This Project?
 
-**Word Hunt** is a web-based application that helps you solve word search puzzles automatically using AI technology. Simply upload a photo of your word search puzzle, and the app will:
+**Word Search Solver** is a web-based application that helps you solve word search puzzles automatically using AI technology. Simply upload a photo of your word search puzzle, and the app will:
 
 1. **Extract the letter grid** automatically using OCR (Optical Character Recognition)
 2. **Find all the words** you're looking for in any direction
