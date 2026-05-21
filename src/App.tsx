@@ -1,633 +1,759 @@
-import React, { useState, useEffect, useRef } from "react";
-import { Grid, ArrowDown, Upload, Sparkles, Check, HelpCircle } from "lucide-react";
+import React, { useState, useRef, useEffect } from "react";
+import {
+  Upload,
+  CheckCircle,
+  RefreshCw,
+  AlertCircle,
+  Sparkles,
+  Check,
+  FileImage,
+  HelpCircle,
+  Lightbulb,
+  Play,
+  ArrowRight,
+  Award,
+  Flame,
+  MousePointerClick,
+  BookOpen
+} from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { Coordinate, FoundPositionsMap, WordColorsMap, StatusState, FloatingDoodle } from "./types";
-import { findWordInGrid } from "./solverUtils";
 
-const HIGHLIGHT_COLORS = [
-  { fill: 'rgba(212,168,64,0.35)', stroke: '#d4a840' },
-  { fill: 'rgba(107,143,113,0.35)', stroke: '#6b8f71' },
-  { fill: 'rgba(155,142,196,0.35)', stroke: '#9b8ec4' },
-  { fill: 'rgba(232,97,74,0.35)', stroke: '#e8614a' },
-  { fill: 'rgba(107,174,214,0.35)', stroke: '#6baed6' },
-  { fill: 'rgba(232,160,144,0.35)', stroke: '#e8a090' },
-  { fill: 'rgba(143,188,143,0.35)', stroke: '#8fbc8b' },
-  { fill: 'rgba(176,196,222,0.35)', stroke: '#b0c4de' },
+// Responsive grid coordinate helpers (returns center offset coordinate, 0-100 scale)
+const getCellCenterPercent = (coord, total) => {
+  return ((coord + 0.5) / total) * 100;
+};
+
+// Pastel rainbow glow categories for highlight capsules
+const GLOW_COLORS = [
+  { stroke: "rgb(236, 72, 153)", fill: "rgba(236, 72, 153, 0.22)" }, // Pink
+  { stroke: "rgb(16, 185, 129)", fill: "rgba(16, 185, 129, 0.22)" }, // Emerald
+  { stroke: "rgb(59, 130, 246)", fill: "rgba(59, 130, 246, 0.22)" }, // Blue
+  { stroke: "rgb(245, 158, 11)", fill: "rgba(245, 158, 11, 0.22)" }, // Amber
+  { stroke: "rgb(139, 92, 246)", fill: "rgba(139, 92, 246, 0.22)" }, // Violet
+  { stroke: "rgb(20, 184, 166)", fill: "rgba(20, 184, 166, 0.22)" }, // Teal
+  { stroke: "rgb(244, 63, 94)", fill: "rgba(244, 63, 94, 0.22)" },  // Rose
+  { stroke: "rgb(6, 182, 212)", fill: "rgba(6, 182, 212, 0.22)" }   // Cyan
 ];
 
+// Pre-loaded offline demo schema
+const DEMO_PUZZLE = {
+  grid: [
+    ["G", "E", "M", "I", "N", "I", "A", "I", "S", "Y", "S"],
+    ["O", "C", "R", "S", "O", "L", "V", "E", "R", "W", "E"],
+    ["O", "P", "U", "Z", "Z", "L", "E", "G", "C", "O", "A"],
+    ["G", "E", "S", "W", "O", "R", "D", "R", "H", "R", "R"],
+    ["L", "X", "I", "M", "A", "G", "E", "I", "Y", "D", "C"],
+    ["E", "V", "I", "S", "I", "O", "N", "D", "K", "S", "H"],
+    ["D", "E", "T", "E", "C", "T", "I", "O", "N", "E", "W"],
+    ["M", "X", "W", "A", "P", "F", "E", "T", "C", "H", "B"],
+    ["V", "I", "L", "I", "G", "H", "T", "O", "U", "T", "Z"],
+    ["N", "E", "T", "L", "I", "F", "Y", "J", "S", "O", "N"]
+  ],
+  words: ["GEMINI", "OCR", "SOLVER", "PUZZLE", "WORD", "IMAGE", "VISION", "DETECTION", "NETLIFY", "JSON", "GOOGLE", "FETCH"],
+  solutions: [
+    { word: "GEMINI", startRow: 0, startCol: 0, endRow: 0, endCol: 5 },
+    { word: "OCR", startRow: 1, startCol: 0, endRow: 1, endCol: 2 },
+    { word: "SOLVER", startRow: 1, startCol: 3, endRow: 1, endCol: 8 },
+    { word: "PUZZLE", startRow: 2, startCol: 2, endRow: 2, endCol: 7 },
+    { word: "WORD", startRow: 3, startCol: 3, endRow: 3, endCol: 6 },
+    { word: "IMAGE", startRow: 4, startCol: 2, endRow: 4, endCol: 6 },
+    { word: "VISION", startRow: 5, startCol: 1, endRow: 5, endCol: 6 },
+    { word: "DETECTION", startRow: 6, startCol: 0, endRow: 6, endCol: 8 },
+    { word: "NETLIFY", startRow: 9, startCol: 0, endRow: 9, endCol: 6 },
+    { word: "JSON", startRow: 9, startCol: 7, endRow: 9, endCol: 10 },
+    { word: "GOOGLE", startRow: 0, startCol: 0, endRow: 5, endCol: 0 },
+    { word: "FETCH", startRow: 7, startCol: 5, endRow: 7, endCol: 9 }
+  ]
+};
+
 export default function App() {
-  const [grid, setGrid] = useState<string[][]>([]);
-  const [wordsList, setWordsList] = useState<string[]>([]);
-  const [gridInputText, setGridInputText] = useState("");
-  const [wordsInputText, setWordsInputText] = useState("");
-  const [imageUri, setImageUri] = useState("");
-  const [status, setStatus] = useState<StatusState>({ type: "idle", text: "" });
-  const [foundPositions, setFoundPositions] = useState<FoundPositionsMap>({});
-  const [wordColors, setWordColors] = useState<WordColorsMap>({});
-  const [solved, setSolved] = useState(false);
-  const [isDragOver, setIsDragOver] = useState(false);
-  const [doodles, setDoodles] = useState<FloatingDoodle[]>([]);
+  const [image, setImage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [scanStep, setScanStep] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const [grid, setGrid] = useState<string[][] | null>(null);
+  const [words, setWords] = useState<string[]>([]);
+  const [solutions, setSolutions] = useState<any[]>([]);
+  
+  // Track words found manually/automatically
+  const [foundWords, setFoundWords] = useState<string[]>([]);
+  // Hover state to highlight a single word
+  const [hoveredWord, setHoveredWord] = useState<string | null>(null);
+  // Track coordinate tracing state (click start then click end letter)
+  const [selectedStart, setSelectedStart] = useState<{ row: number; col: number } | null>(null);
+  const [activeMessage, setActiveMessage] = useState<string | null>("Upload a word search image to begin.");
+
+  // Scan steps messages
+  const loadSteps = [
+    "Uploading image to compute node...",
+    "Contacting Gemini Vision OCR model...",
+    "Detecting grid row & column layout...",
+    "Filtering word ban lists...",
+    "Calculating vector solution paths..."
+  ];
+
+  // Rotate logging feedback
+  useEffect(() => {
+    if (loading) {
+      const interval = setInterval(() => {
+        setScanStep((prev) => (prev + 1) % loadSteps.length);
+      }, 2500);
+      return () => clearInterval(interval);
+    }
+  }, [loading]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const solverSectionRef = useRef<HTMLElement>(null);
 
-  // Trigger floating decorative doodles
-  const triggerDoodle = (text: string) => {
-    const id = Date.now() + Math.random();
-    const colors = ['#e8614a', '#6b8f71', '#9b8ec4', '#d4a840'];
-    const newDoodle: FloatingDoodle = {
-      id,
-      text,
-      left: (20 + Math.random() * 60) + "%",
-      top: (30 + Math.random() * 30) + "%",
-      color: colors[Math.floor(Math.random() * colors.length)]
-    };
-    setDoodles(prev => [...prev, newDoodle]);
-    setTimeout(() => {
-      setDoodles(prev => prev.filter(d => d.id !== id));
-    }, 6000);
+  // Convert raw file to base64
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      processFile(file);
+    }
   };
 
-  // Convert uploaded image to base64 and invoke backend AI API
-  const handleImageFile = (file: File) => {
-    if (!file.type.startsWith("image/")) {
-      setStatus({ type: "error", text: "Please use configured image formats (PNG, JPG, WEBP)." });
-      return;
-    }
+  const processFile = (file: File) => {
+    setImage(null);
+    setGrid(null);
+    setWords([]);
+    setSolutions([]);
+    setFoundWords([]);
+    setSelectedStart(null);
+    setError(null);
+    setLoading(true);
+    setScanStep(0);
+    setActiveMessage("Stitch-parsing puzzle file...");
 
     const reader = new FileReader();
-    reader.onload = async (e) => {
-      const base64Str = e.target?.result as string;
-      setImageUri(base64Str);
-      setStatus({ type: "loading", text: "AI is reading your puzzle image..." });
-
-      try {
-        const response = await fetch("/api/extract", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ image: base64Str }),
-        });
-
-        if (!response.ok) {
-          let errData: any = {};
-          try {
-            errData = await response.json();
-          } catch {}
-          throw new Error(errData.error || "Failed to parse grid puzzle accurately");
-        }
-
-        const data = await response.json();
-        const extractedGrid: string[][] = data.grid || [];
-        const extractedWords: string[] = data.words || [];
-
-        setGrid(extractedGrid);
-        setWordsList(extractedWords);
-
-        // Update text areas for synchronization
-        const gridText = extractedGrid.map(row => row.join("")).join("\n");
-        const wordsText = extractedWords.join(", ");
-        setGridInputText(gridText);
-        setWordsInputText(wordsText);
-
-        setStatus({ type: "success", text: "✓ Grid & list extracted! Solved instantly." });
-        solvePuzzle(extractedGrid, extractedWords);
-        triggerDoodle("extracted! ✨");
-
-        setTimeout(() => {
-          setStatus(prev => prev.type === "success" ? { type: "idle", text: "" } : prev);
-        }, 4000);
-
-      } catch (err: any) {
-        console.error(err);
-        setStatus({ type: "error", text: `AI OCR Failed: ${err.message || "Connection timeout"}. Feel free to type manually.` });
-      }
+    reader.onload = async () => {
+      const base64String = reader.result as string;
+      setImage(base64String);
+      await sendToSolver(base64String);
+    };
+    reader.onerror = () => {
+      setError("Failed to read image file.");
+      setLoading(false);
     };
     reader.readAsDataURL(file);
   };
 
-  // Drag & drop handlers
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(true);
+  // POST base64 payload to Netlify Function solved endpoint
+  const sendToSolver = async (base64Image: string) => {
+    try {
+      console.log("[Client] Posting block image to netlify function...");
+      const res = await fetch("/.netlify/functions/solve", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ image: base64Image })
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.details || `Http Error ${res.status}`);
+      }
+
+      const data = await res.json();
+      console.log("[Client] Solver returned success payload:", data);
+
+      if (!data.grid || data.grid.length === 0) {
+        throw new Error("No grid detected in image. Please ensure your photo focuses clearly on the puzzle.");
+      }
+
+      setGrid(data.grid);
+      setWords(data.words || []);
+      setSolutions(data.solutions || []);
+      setFoundWords([]);
+      setActiveMessage(`Puzzle successfully solved! Double-click or pick letters to play, or hit Solve All.`);
+    } catch (err: any) {
+      console.error("[Client] Solve Request Failed:", err);
+      setError(err.message || "An unexpected error occurred during OCR scanning.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDragLeave = () => {
-    setIsDragOver(false);
+  // Load offline demo for instant verification
+  const handleLoadDemo = () => {
+    setError(null);
+    setImage("demo"); // Set dummy flag to show mock puzzle layout
+    setLoading(true);
+    setScanStep(0);
+    
+    // Simulate a brief awesome scan experience
+    setTimeout(() => {
+      setGrid(DEMO_PUZZLE.grid);
+      setWords(DEMO_PUZZLE.words);
+      setSolutions(DEMO_PUZZLE.solutions);
+      setFoundWords([]);
+      setSelectedStart(null);
+      setLoading(false);
+      setActiveMessage("Demo puzzle loaded successfully! Try click tracing columns or solved rows manually.");
+    }, 1200);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  // Tracing cell click handler
+  const handleCellClick = (r: number, c: number) => {
+    if (!grid || !solutions) return;
+
+    if (!selectedStart) {
+      // First coordinate click
+      setSelectedStart({ row: r, col: c });
+      setActiveMessage(`Start letter selected: ${grid[r][c]}. Click the ending letter of your word!`);
+    } else {
+      // Second coordinate click
+      const r1 = selectedStart.row;
+      const c1 = selectedStart.col;
+      const r2 = r;
+      const c2 = c;
+
+      if (r1 === r2 && c1 === c2) {
+        // Deselect
+        setSelectedStart(null);
+        setActiveMessage("Selection cancelled.");
+        return;
+      }
+
+      // Check coordinates against solutions matrix
+      const match = solutions.find((sol) => {
+        return (
+          (sol.startRow === r1 && sol.startCol === c1 && sol.endRow === r2 && sol.endCol === c2) ||
+          (sol.startRow === r2 && sol.startCol === c2 && sol.endRow === r1 && sol.endCol === c1)
+        );
+      });
+
+      if (match) {
+        if (!foundWords.includes(match.word)) {
+          setFoundWords((prev) => [...prev, match.word]);
+          setActiveMessage(`Found word: **${match.word}**! Superb tracking! 🎉`);
+        } else {
+          setActiveMessage(`You already highlighted ${match.word}.`);
+        }
+      } else {
+        // Try testing if they select back-to-front or if it exists in list
+        setActiveMessage("No word spans between those letters. Keep searching!");
+      }
+      setSelectedStart(null);
+    }
+  };
+
+  // Highlight all words directly
+  const handleSolveAll = () => {
+    if (!solutions) return;
+    const allWords = solutions.map((s) => s.word);
+    setFoundWords(allWords);
+    setActiveMessage("AI instantly uncovered all words hidden in the matrix!");
+  };
+
+  // Clean application workspace
+  const handleReset = () => {
+    setImage(null);
+    setGrid(null);
+    setWords([]);
+    setSolutions([]);
+    setFoundWords([]);
+    setSelectedStart(null);
+    setError(null);
+    setActiveMessage("Upload a word search image to begin.");
+  };
+
+  // SVG Dimension constraints for drawing coordinate path pills
+  const totalRows = grid ? grid.length : 1;
+  const totalCols = grid && grid[0] ? grid[0].length : 1;
+
+  const dragOverHandler = (e: React.DragEvent) => {
     e.preventDefault();
-    setIsDragOver(false);
+  };
+
+  const dropHandler = (e: React.DragEvent) => {
+    e.preventDefault();
     const file = e.dataTransfer.files?.[0];
     if (file) {
-      handleImageFile(file);
+      processFile(file);
     }
   };
-
-  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      handleImageFile(file);
-    }
-  };
-
-  // Try standard or sample puzzles
-  const handleLoadSample = () => {
-    const sampleGrid = [
-      'SUNFLOWER TX',
-      'ZBTREEOXPQM',
-      'ACLOUDBVAIN',
-      'RAINYDAWNWE',
-      'ABCSTORMFGP',
-      'FLOODWORTHZ',
-      'MXSNOWQREFY',
-      'WINDJKPARKW',
-      'HVBOULDEROI',
-      'SPRINGLAKEND',
-    ].map(l => l.replace(/\s/g,''));
-
-    const sampleWords = 'SUNFLOWER,TREE,CLOUD,RAIN,STORM,FLOOD,SNOW,WIND,BOULDER,SPRING,LAKE,DAWN,PARK'.split(',');
-    const parsedGrid = sampleGrid.map(row => row.split(""));
-
-    setGrid(parsedGrid);
-    setWordsList(sampleWords);
-    setGridInputText(sampleGrid.join("\n"));
-    setWordsInputText(sampleWords.join(", "));
-
-    solvePuzzle(parsedGrid, sampleWords);
-    setStatus({ type: "success", text: "✓ Sample loaded!" });
-    triggerDoodle("sample loaded ✨");
-
-    setTimeout(() => {
-      setStatus(prev => prev.type === "success" ? { type: "idle", text: "" } : prev);
-    }, 3000);
-  };
-
-  // Perform localized coordinates matching in the grid
-  const solvePuzzle = (currGrid: string[][], currWords: string[]) => {
-    if (currGrid.length === 0) return;
-    
-    const found: FoundPositionsMap = {};
-    const colors: WordColorsMap = {};
-
-    currWords.forEach((word, idx) => {
-      const pos = findWordInGrid(currGrid, word);
-      if (pos) {
-        found[word] = pos;
-        colors[word] = HIGHLIGHT_COLORS[idx % HIGHLIGHT_COLORS.length];
-      }
-    });
-
-    setFoundPositions(found);
-    setWordColors(colors);
-    setSolved(true);
-  };
-
-  const handleManualSolve = () => {
-    if (grid.length === 0) {
-      alert("Please upload a puzzle image or enter your grid letters details manually first!");
-      return;
-    }
-    if (wordsList.length === 0) {
-      alert("Please specify at least one word to find/solve!");
-      return;
-    }
-    solvePuzzle(grid, wordsList);
-    triggerDoodle("solved! ✦");
-  };
-
-  // Handle manual grid edits reactively
-  const handleGridTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const text = e.target.value;
-    setGridInputText(text);
-
-    const lines = text.toUpperCase().split("\n").filter(l => l.trim());
-    const parsedGrid = lines.map(line => line.replace(/\s/g, "").split(""));
-    setGrid(parsedGrid);
-
-    if (wordsList.length > 0) {
-      solvePuzzle(parsedGrid, wordsList);
-    }
-  };
-
-  const handleWordsTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const text = e.target.value;
-    setWordsInputText(text);
-
-    const parsedWords = text
-      .toUpperCase()
-      .split(",")
-      .map(w => w.trim())
-      .filter(w => w.length > 0);
-    setWordsList(parsedWords);
-
-    if (grid.length > 0) {
-      solvePuzzle(grid, parsedWords);
-    }
-  };
-
-  // Canvas re-rendering cycle when state elements match
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || grid.length === 0) return;
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const CELL = 38;
-    const cols = Math.max(...grid.map(row => row.length));
-    const rows = grid.length;
-
-    canvas.width = cols * CELL;
-    canvas.height = rows * CELL;
-
-    // Background color matching scrap scheme
-    ctx.fillStyle = "#faf6ef";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Helpers to draw rounded boxes
-    const roundRect = (c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) => {
-      c.beginPath();
-      c.moveTo(x + r, y);
-      c.lineTo(x + w - r, y);
-      c.arcTo(x + w, y, x + w, y + r, r);
-      c.lineTo(x + w, y + h - r);
-      c.arcTo(x + w, y + h, x + w - r, y + h, r);
-      c.lineTo(x + r, y + h);
-      c.arcTo(x, y + h, x, y + h - r, r);
-      c.lineTo(x, y + r);
-      c.arcTo(x, y, x + r, y, r);
-      c.closePath();
-    };
-
-    // Draw grid characters
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < (grid[r]?.length || 0); c++) {
-        const x = c * CELL;
-        const y = r * CELL;
-
-        ctx.fillStyle = "#fdfaf5";
-        roundRect(ctx, x + 2, y + 2, CELL - 4, CELL - 4, 6);
-        ctx.fill();
-
-        ctx.strokeStyle = "rgba(237, 228, 208, 0.8)";
-        ctx.lineWidth = 1;
-        roundRect(ctx, x + 2, y + 2, CELL - 4, CELL - 4, 6);
-        ctx.stroke();
-
-        ctx.fillStyle = "#3d3830";
-        ctx.font = "bold 15px 'Courier New', monospace";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(grid[r][c] || "", x + CELL / 2, y + CELL / 2);
-      }
-    }
-
-    // Draw solver highlight capsules over matching coordinates
-    Object.entries(foundPositions).forEach(([word, pos]) => {
-      const positions = pos as Coordinate[];
-      const col = wordColors[word];
-      if (!col || !positions || positions.length === 0) return;
-
-      const first = positions[0];
-      const last = positions[positions.length - 1];
-
-      const x1 = first[1] * CELL + CELL / 2;
-      const y1 = first[0] * CELL + CELL / 2;
-      const x2 = last[1] * CELL + CELL / 2;
-      const y2 = last[0] * CELL + CELL / 2;
-
-      const dx = x2 - x1;
-      const dy = y2 - y1;
-      const len = Math.sqrt(dx * dx + dy * dy);
-      const angle = Math.atan2(dy, dx);
-      const R = CELL * 0.45;
-
-      ctx.save();
-      ctx.translate(x1 + dx / 2, y1 + dy / 2);
-      ctx.rotate(angle);
-
-      ctx.beginPath();
-      const halfLen = len / 2;
-      ctx.moveTo(-halfLen, -R);
-      ctx.lineTo(halfLen, -R);
-      ctx.arc(halfLen, 0, R, -Math.PI / 2, Math.PI / 2);
-      ctx.lineTo(-halfLen, R);
-      ctx.arc(-halfLen, 0, R, Math.PI / 2, -Math.PI / 2);
-      ctx.closePath();
-
-      ctx.fillStyle = col.fill;
-      ctx.fill();
-
-      ctx.strokeStyle = col.stroke;
-      ctx.lineWidth = 2;
-      ctx.stroke();
-
-      ctx.restore();
-    });
-
-  }, [grid, foundPositions, wordColors]);
-
-  const scrollToSolver = () => {
-    solverSectionRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  const foundCount = Object.keys(foundPositions).length;
 
   return (
-    <>
-      {/* Background decoration elements */}
-      <div className="bg-blob blob-1"></div>
-      <div className="bg-blob blob-2"></div>
-      <div className="bg-blob blob-3"></div>
-
-      {/* Navigation */}
-      <nav>
-        <div className="nav-logo">
-          <div className="logo-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round">
-              <rect x="3" y="3" width="7" height="7" rx="1" />
-              <rect x="14" y="3" width="7" height="7" rx="1" />
-              <rect x="3" y="14" width="7" height="7" rx="1" />
-              <path d="M14 17.5h7M17.5 14v7" strokeWidth="2.5" />
-            </svg>
+    <div id="word-solve-container" className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-pink-100 flex flex-col justify-between">
+      {/* Top Header navbar */}
+      <header className="sticky top-0 z-40 w-full bg-white/80 backdrop-blur-md border-b border-slate-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-pink-500 to-indigo-600 flex items-center justify-center text-white font-bold shadow-lg shadow-pink-500/20">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-serif tracking-tight text-slate-900 leading-none">
+                WordSolve <span className="font-hand text-pink-500 font-bold text-3xl align-middle pl-0.5">AI</span>
+              </h1>
+              <p className="text-xs text-slate-500 tracking-wider uppercase font-mono mt-1">Premium Puzzle Solver</p>
+            </div>
           </div>
-          <span className="logo-text">WordSolve<span>AI</span></span>
-        </div>
-        <button className="nav-link" onClick={scrollToSolver}>✦ Try it now</button>
-      </nav>
 
-      {/* Hero Header */}
-      <section className="hero">
-        <div className="hero-eyebrow">✦ AI-powered puzzle solving</div>
-        <h1 className="hero-title">
-          Solve any word search<br /><em>instantly</em>
-        </h1>
-        <p className="hero-sub">
-          Drop in a puzzle image. Our Gemini AI processes the layout, extracts the grid and target word list, and highlights all solutions beautifully — in seconds.
-        </p>
-        <div className="hero-cta">
-          <button className="btn-primary" onClick={scrollToSolver}>
-            <ArrowDown className="w-[18px] h-[18px] stroke-3" />
-            Open the solver
-          </button>
-        </div>
-        <div className="hero-pills">
-          <div className="pill">📸 Upload any image</div>
-          <div className="pill">🧠 Vision AI extracts layout</div>
-          <div className="pill">✨ One-character fuzzy toleration</div>
-          <div className="pill">🆓 Free forever</div>
-        </div>
-
-        {/* Decorative Doodles in Hero */}
-        <div style={{ position: "absolute", top: "18%", left: "6%", fontFamily: "var(--font-hand)", fontSize: "1rem", color: "var(--ink-muted)", opacity: 0.5, transform: "rotate(-8deg)" }}>
-          drop it here ↓
-        </div>
-        <div style={{ position: "absolute", top: "22%", right: "8%", fontFamily: "var(--font-hand)", fontSize: "0.9rem", color: "var(--sage)", opacity: 0.5, transform: "rotate(5deg)" }}>
-          magic happens ✨
-        </div>
-        <div style={{ position: "absolute", bottom: "18%", left: "10%", fontFamily: "var(--font-hand)", fontSize: "0.85rem", color: "var(--lavender)", opacity: 0.5, transform: "rotate(-4deg)" }}>
-          found it!
-        </div>
-      </section>
-
-      {/* How it works torn paper divider */}
-      <div className="torn-divider"></div>
-
-      <section className="how-section reveal visible" id="how">
-        <p className="section-label">— how it works —</p>
-        <h2 className="section-title">Three steps of intelligence</h2>
-        <div className="steps">
-          <div className="step">
-            <div className="step-num">1</div>
-            <h3 className="step-title">Upload your puzzle</h3>
-            <p className="step-desc">Drag & drop a photo, magazine screenshot, or paper scan.</p>
-            <div className="step-note">any quality or orientation ✓</div>
-          </div>
-          <div className="step">
-            <div className="step-num">2</div>
-            <h3 className="step-title">AI Vision OCR reads it</h3>
-            <p className="step-desc">Gemini AI detects all letter blocks & lists without truncating rows.</p>
-            <div className="step-note">intelligent letter inference ✓</div>
-          </div>
-          <div className="step">
-            <div className="step-num">3</div>
-            <h3 className="step-title">Words found!</h3>
-            <p className="step-desc">Hidden indices are resolved with beautiful highlight contours.</p>
-            <div className="step-note">all directions solved ✓</div>
-          </div>
-        </div>
-      </section>
-
-      {/* Main Solver Interaction Area */}
-      <section className="demo-section" id="solver" ref={solverSectionRef}>
-        <p className="section-label">— the solver —</p>
-        <h2 className="section-title">Your puzzle, solved</h2>
-        <p className="section-note">Upload an image or try the sample puzzle below ↓</p>
-
-        <div className="app-grid">
-          {/* Left panel: Upload Card */}
-          <div className="upload-card reveal visible">
-            {/* scrapbook tape decorations */}
-            <div className="tape" style={{ width: "50px", height: "18px", top: "-9px", left: "40px", transform: "rotate(-2deg)" }}></div>
-            <div className="tape" style={{ width: "50px", height: "18px", top: "-9px", right: "60px", transform: "rotate(2deg)" }}></div>
-
-            <h3 className="card-title">Upload Puzzle</h3>
-            <p className="card-note">drag & drop or click to choose a file</p>
-
-            <div
-              className={`drop-zone ${isDragOver ? "dragover" : ""}`}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={handleLoadDemo}
+              disabled={loading}
+              className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-full transition-all duration-200 disabled:opacity-50 flex items-center space-x-1.5 cursor-pointer"
             >
-              <div className="drop-zone-icon">
-                <Upload className="w-7 h-7 stroke-cream fill-none" />
-              </div>
-              <p className="drop-label">drop your puzzle here ✨</p>
-              <p className="drop-sub">PNG, JPG, WEBP — any dimension</p>
-              <div style={{ display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap", zIndex: 10 }}>
+              <Flame className="w-4 h-4 text-amber-500 animate-pulse" />
+              <span>Load Demo Puzzle</span>
+            </button>
+            
+            <a
+              href="#instructions"
+              className="text-sm font-medium text-slate-500 hover:text-slate-800 transition duration-150 hidden sm:inline"
+            >
+              Instructions
+            </a>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Container Area */}
+      <main className="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        {/* Dynamic Warning Notification Banner */}
+        <AnimatePresence>
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="mb-8 p-4 bg-rose-50 border border-rose-100 rounded-2xl flex items-start space-x-3 text-rose-800 shadow-sm"
+            >
+              <AlertCircle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
+              <div>
+                <h4 className="font-semibold text-rose-900">Scanning Process Failed</h4>
+                <p className="text-sm mt-0.5 leading-relaxed">{error}</p>
                 <button
-                  className="drop-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    fileInputRef.current?.click();
-                  }}
+                  onClick={() => setImage(null)}
+                  className="mt-2 text-xs font-semibold text-rose-700 underline hover:text-rose-900 cursor-pointer"
                 >
-                  Choose File
-                </button>
-                <button
-                  className="sample-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleLoadSample();
-                  }}
-                >
-                  ✦ Try Sample
+                  Dismiss & try another image
                 </button>
               </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* State 1: Setup Dropzone View */}
+        {!image && !loading && (
+          <div className="space-y-12">
+            
+            {/* Elegant Hero Pitch */}
+            <div className="text-center max-w-2xl mx-auto space-y-4">
+              <h2 className="text-4xl sm:text-5xl font-serif text-slate-900 tracking-tight leading-tight">
+                Solve any Word Search <br />
+                puzzle in <span className="underline decoration-pink-400 decoration-wavy underline-offset-8">seconds</span>
+              </h2>
+              <p className="text-lg text-slate-600 font-sans tracking-wide leading-relaxed">
+                Take a quick photo or screenshot of any word search layout. Upload it below, and let advanced Google Gemini AI extract letters, lists, and highlight solved coordinate lines instantly.
+              </p>
+            </div>
+
+            {/* Dropper Area */}
+            <div
+              onDragOver={dragOverHandler}
+              onDrop={dropHandler}
+              onClick={() => fileInputRef.current?.click()}
+              className="border-2 border-dashed border-slate-300 hover:border-pink-400 bg-white hover:bg-slate-50 rounded-3xl p-10 sm:p-16 text-center cursor-pointer transition-all duration-300 shadow-sm shadow-slate-100 hover:shadow-md flex flex-col items-center group max-w-3xl mx-auto"
+            >
               <input
                 type="file"
                 ref={fileInputRef}
-                id="imageInput"
+                onChange={handleFileChange}
                 accept="image/*"
-                onChange={handleFileInputChange}
+                className="hidden"
               />
+              <div className="w-16 h-16 rounded-2xl bg-pink-50 text-pink-500 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300 shadow-sm">
+                <Upload className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-semibold text-slate-800">Drag and drop puzzle image</h3>
+              <p className="text-sm text-slate-500 mt-2 max-w-md leading-relaxed">
+                Supports PNG, JPG, or screen captures. Make sure character rows are flat and legible.
+              </p>
+              
+              <div className="mt-8 flex items-center space-x-3">
+                <span className="h-px w-8 bg-slate-200"></span>
+                <span className="text-xs text-slate-400 font-mono tracking-wider uppercase">or</span>
+                <span className="h-px w-8 bg-slate-200"></span>
+              </div>
+
+              <button
+                type="button"
+                className="mt-6 px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-full text-sm font-medium transition shadow-sm cursor-pointer"
+              >
+                Browse local files
+              </button>
             </div>
 
-            {/* Selected Image Preview */}
-            {imageUri && (
-              <div className="image-preview-wrap" style={{ display: "block" }}>
-                <img src={imageUri} alt="puzzle preview" />
-                <div className="sticker" style={{ bottom: "8px", right: "12px" }}>your puzzle →</div>
+            {/* How it works grid */}
+            <div id="instructions" className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 pt-8">
+              <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+                <div className="text-2xl font-hand text-pink-500 font-bold">01. Snap Photo</div>
+                <h4 className="font-semibold text-slate-800">Upload Puzzle Scan</h4>
+                <p className="text-sm text-slate-500 leading-relaxed">
+                  Support blurry screenshots or tilted captures. Gemini reads character layouts under custom decorative typography.
+                </p>
               </div>
-            )}
-
-            {/* AI OCR Activity and Error Toasts */}
-            {status.type !== "idle" && (
-              <div className={`processing-indicator show ${status.type === "success" ? "success-state" : status.type === "error" ? "error-state" : ""}`}>
-                {status.type === "loading" && <div className="spinner"></div>}
-                <span>{status.text}</span>
+              <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+                <div className="text-2xl font-hand text-indigo-500 font-bold">02. OCR Analysis</div>
+                <h4 className="font-semibold text-slate-800">Interactive Extraction</h4>
+                <p className="text-sm text-slate-500 leading-relaxed">
+                  The back-end Netlify Function constructs a strict characters grid and extracts terms listed in the word bank.
+                </p>
               </div>
-            )}
-
-            {/* Grid Edit Block */}
-            <div className="field-group">
-              <div className="field-label">
-                <span className="dot"></span>
-                Grid letters (auto-extracted or edits)
+              <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+                <div className="text-2xl font-hand text-emerald-500 font-bold">03. Trace & Highlight</div>
+                <h4 className="font-semibold text-slate-800">Solve Automatically</h4>
+                <p className="text-sm text-slate-500 leading-relaxed">
+                  Select word start/end letters to trace coordinates himself, or hit "Solve All" for rich colored vectors overlays.
+                </p>
               </div>
-              <textarea
-                id="gridInput"
-                value={gridInputText}
-                onChange={handleGridTextChange}
-                placeholder="Grid auto-fills after upload…&#10;Or type/paste it like:&#10;HELLOWORLD&#10;PUZZLESOLV&#10;WORDSFOUND"
-              />
             </div>
 
-            {/* Word Targets Edit Block */}
-            <div className="field-group">
-              <div className="field-label">
-                <span className="dot" style={{ backgroundColor: "var(--sage)" }}></span>
-                Words to find (comma-separated list)
-              </div>
-              <textarea
-                id="wordsInput"
-                value={wordsInputText}
-                onChange={handleWordsTextChange}
-                placeholder="HELLO, WORLD, PUZZLE…"
-              />
-            </div>
-
-            <button className="solve-btn" onClick={handleManualSolve}>
-              🔍 Solve Puzzle
-            </button>
           </div>
+        )}
 
-          {/* Right panel: Solution & Canvas Results Card */}
-          <div className="results-card reveal visible">
-            <div className="tape" style={{ width: "50px", height: "18px", top: "-9px", left: "80px", transform: "rotate(-1deg)" }}></div>
+        {/* State 2: Scanning / Loading Overlay */}
+        {loading && (
+          <div className="max-w-2xl mx-auto rounded-3xl bg-white border border-slate-100 p-8 text-center space-y-8 shadow-md">
+            
+            {/* Blueprint Scan Animation block */}
+            <div className="relative w-48 h-48 mx-auto bg-slate-50 border border-slate-200 rounded-2xl overflow-hidden flex items-center justify-center">
+              <FileImage className="w-16 h-16 text-slate-300" />
+              
+              {/* Vertical Green Glowing Laser laser line */}
+              <motion.div
+                animate={{ top: ["0%", "100%", "0%"] }}
+                transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
+                className="absolute left-0 w-full h-1 bg-gradient-to-r from-transparent via-pink-400 to-transparent shadow-lg shadow-pink-400"
+              />
+            </div>
 
-            {!solved && (
-              <div className="empty-state" id="emptyState">
-                <div className="empty-icon">🔍</div>
-                <h3 className="empty-title">Your solution appears here</h3>
-                <p className="empty-note">Upload a puzzle image or try the sample →</p>
-                {/* little scribble grid preview animation */}
-                <svg width="200" height="120" style={{ marginTop: "20px", opacity: 0.15 }} viewBox="0 0 200 120" fill="none">
-                  <g stroke="#1c1a17" strokeWidth="1.5">
-                    <rect x="10" y="10" width="25" height="25" rx="4" /><rect x="40" y="10" width="25" height="25" rx="4" /><rect x="70" y="10" width="25" height="25" rx="4" /><rect x="100" y="10" width="25" height="25" rx="4" /><rect x="130" y="10" width="25" height="25" rx="4" />
-                    <rect x="10" y="40" width="25" height="25" rx="4" /><rect x="40" y="40" width="25" height="25" rx="4" /><rect x="70" y="40" width="25" height="25" rx="4" /><rect x="100" y="40" width="25" height="25" rx="4" /><rect x="130" y="40" width="25" height="25" rx="4" />
-                    <rect x="10" y="70" width="25" height="25" rx="4" /><rect x="40" y="70" width="25" height="25" rx="4" /><rect x="70" y="70" width="25" height="25" rx="4" /><rect x="100" y="70" width="25" height="25" rx="4" /><rect x="130" y="70" width="25" height="25" rx="4" />
-                  </g>
-                  <circle cx="22.5" cy="22.5" r="11" fill="rgba(232,97,74,0.25)" stroke="rgba(232,97,74,0.6)" strokeWidth="1.5" />
-                  <circle cx="52.5" cy="52.5" r="11" fill="rgba(107,143,113,0.25)" stroke="rgba(107,143,113,0.6)" strokeWidth="1.5" />
-                  <circle cx="82.5" cy="82.5" r="11" fill="rgba(155,142,196,0.25)" stroke="rgba(155,142,196,0.6)" strokeWidth="1.5" />
-                  <text x="22.5" y="27" textAnchor="middle" fontSize="11" fill="#1c1a17" fontFamily="Courier New">H</text>
-                  <text x="52.5" y="57" textAnchor="middle" fontSize="11" fill="#1c1a17" fontFamily="Courier New">I</text>
-                  <text x="82.5" y="87" textAnchor="middle" fontSize="11" fill="#1c1a17" fontFamily="Courier New">!</text>
-                </svg>
-              </div>
-            )}
+            <div className="space-y-3">
+              <h3 className="text-2xl font-serif text-slate-900 leading-tight">Gemini AI OCR Analyzing...</h3>
+              <p className="text-sm text-slate-500 tracking-wide font-mono px-4 max-w-md mx-auto">
+                CURRENT OPERATION: <span className="text-indigo-600 animate-pulse font-semibold">{loadSteps[scanStep]}</span>
+              </p>
+            </div>
 
-            {solved && (
-              <div className="grid-display" style={{ display: "flex" }}>
-                <div className="grid-display-header">
-                  <span className="grid-display-title">Solution Dashboard</span>
-                  <div className="stats-row">
-                    <div className="stat-chip">Found <strong>{foundCount}</strong></div>
-                    <div className="stat-chip">Total <strong>{wordsList.length}</strong></div>
+            {/* Circular loading timeline steps */}
+            <div className="grid grid-cols-5 gap-3 max-w-md mx-auto pt-4">
+              {loadSteps.map((_, index) => (
+                <div
+                  key={index}
+                  className={`h-2 rounded-full transition-all duration-500 ${
+                    index <= scanStep ? "bg-gradient-to-r from-pink-500 to-indigo-500" : "bg-slate-100"
+                  }`}
+                />
+              ))}
+            </div>
+            
+            <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
+              *First-time cold starts on Serverless Functions can take a few seconds deeper as containers spin up the Google Gen AI client headers.
+            </p>
+          </div>
+        )}
+
+        {/* State 3: Main Active Game Board Layout */}
+        {!loading && grid && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="grid grid-cols-1 lg:grid-cols-3 gap-8"
+          >
+            
+            {/* Left Hand: Interactive puzzle letter grid board */}
+            <div className="lg:col-span-2 space-y-6">
+              
+              <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-6">
+                
+                {/* Board controls bar */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+                  <div className="space-y-1">
+                    <div className="text-xs text-slate-400 font-mono uppercase tracking-widest flex items-center space-x-1">
+                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+                      <span>Grid Live Layout</span>
+                    </div>
+                    <h3 className="text-lg font-bold text-slate-950 flex items-center gap-1.5 font-serif">
+                      <span>Interactive Letter Matrix</span>
+                      <span className="text-xs bg-slate-100 px-2 py-0.5 text-slate-600 rounded-full font-sans">
+                        {totalRows} × {totalCols}
+                      </span>
+                    </h3>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleSolveAll}
+                      className="px-4 py-2 bg-gradient-to-r from-pink-500 to-indigo-600 hover:from-pink-600 hover:to-indigo-700 text-white rounded-full text-xs font-semibold shadow-md shadow-pink-500/10 cursor-pointer flex items-center space-x-1.5 transition-all duration-200 hover:scale-[1.02]"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Solve All Words</span>
+                    </button>
+
+                    <button
+                      onClick={handleReset}
+                      className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 border border-slate-200 rounded-full cursor-pointer transition"
+                      title="Upload New Puzzle"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
 
-                <div className="overflow-auto max-w-full">
-                  <canvas ref={canvasRef} id="gridCanvas" />
+                {/* Sub banner advice notification */}
+                <div className="bg-slate-50 rounded-2xl p-4 flex items-start space-x-2 text-xs text-slate-600 leading-relaxed border border-slate-100">
+                  <MousePointerClick className="w-4 h-4 text-pink-500 shrink-0 mt-0.5 animate-bounce" />
+                  <div>
+                    <span className="font-semibold text-slate-800">Dynamic Cell Tracing:</span> Click the <span className="font-semibold">Starting letter</span>, then click the <span className="font-semibold">Ending letter</span> of a word to highlights. Matches are checked off your board!
+                  </div>
                 </div>
 
-                {/* Color-mapped matching word-tags list */}
-                <div className="word-tags-wrap" id="wordTags">
-                  {wordsList.map((word, i) => {
-                    const isFound = !!foundPositions[word];
-                    const col = wordColors[word];
-                    const styleProps = isFound && col ? {
-                      borderColor: col.stroke,
-                      color: col.stroke,
-                      backgroundColor: col.fill
-                    } : {};
+                {/* Relocatable Canvas Box containing characters and percent-SVG capsule lines overlays */}
+                <div className="relative w-full aspect-square sm:aspect-video rounded-2xl bg-neutral-900 border border-neutral-900 p-4 sm:p-6 overflow-hidden shadow-inner flex items-center justify-center">
+                  
+                  {/* Letters Grid block */}
+                  <div className="grid h-full w-full gap-0.5 select-none relative z-10"
+                    style={{
+                      gridTemplateRows: `repeat(${totalRows}, minmax(0, 1fr))`,
+                      gridTemplateColumns: `repeat(${totalCols}, minmax(0, 1fr))`
+                    }}
+                  >
+                    {grid.map((rowArr, rIdx) =>
+                      rowArr.map((char, cIdx) => {
+                        const isStartSel = selectedStart?.row === rIdx && selectedStart?.col === cIdx;
+                        
+                        return (
+                          <div
+                            key={`${rIdx}-${cIdx}`}
+                            onClick={() => handleCellClick(rIdx, cIdx)}
+                            className={`flex items-center justify-center text-sm sm:text-base font-bold transition-all duration-200 cursor-pointer rounded-md ${
+                              isStartSel
+                                ? "bg-pink-500 text-white shadow-md shadow-pink-500/30 scale-110 z-20 animate-pulse"
+                                : "text-neutral-200 hover:bg-neutral-800 hover:text-white"
+                            }`}
+                          >
+                            {char}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
 
-                    return (
-                      <div
-                        key={word + "-" + i}
-                        className={`word-tag ${isFound ? "found" : "not-found"}`}
-                        style={{ ...styleProps }}
-                      >
-                        {isFound ? `✓ ${word}` : word}
-                      </div>
-                    );
-                  })}
+                  {/* SVG overlay layer - draws glow percentage cables over coordinates */}
+                  <svg
+                    className="absolute inset-0 w-full h-full pointer-events-none z-20"
+                    viewBox="0 0 100 100"
+                    preserveAspectRatio="none"
+                  >
+                    {/* Render found permanent paths */}
+                    {solutions.map((sol, solIdx) => {
+                      const isFound = foundWords.includes(sol.word);
+                      const isHovered = hoveredWord === sol.word;
+                      
+                      if (!isFound && !isHovered) return null;
+
+                      const startCoord = getCellCenterPercent(sol.startCol, totalCols);
+                      const startYCoord = getCellCenterPercent(sol.startRow, totalRows);
+                      const endCoord = getCellCenterPercent(sol.endCol, totalCols);
+                      const endYCoord = getCellCenterPercent(sol.endRow, totalRows);
+
+                      const colPattern = GLOW_COLORS[solIdx % GLOW_COLORS.length];
+
+                      return (
+                        <g key={`sol-line-${sol.word}`}>
+                          {/* Inner glowing pill */}
+                          <line
+                            x1={`${startCoord}%`}
+                            y1={`${startYCoord}%`}
+                            x2={`${endCoord}%`}
+                            y2={`${endYCoord}%`}
+                            stroke={colPattern.fill}
+                            strokeWidth="6"
+                            strokeLinecap="round"
+                          />
+                          {/* Center focus line */}
+                          <line
+                            x1={`${startCoord}%`}
+                            y1={`${startYCoord}%`}
+                            x2={`${endCoord}%`}
+                            y2={`${endYCoord}%`}
+                            stroke={colPattern.stroke}
+                            strokeWidth="1.2"
+                            strokeLinecap="round"
+                            opacity={isHovered ? 1.0 : 0.7}
+                          />
+                        </g>
+                      );
+                    })}
+
+                    {/* Render incomplete hover guide guidance path if clicked start */}
+                    {selectedStart && (
+                      <circle
+                        cx={`${getCellCenterPercent(selectedStart.col, totalCols)}%`}
+                        cy={`${getCellCenterPercent(selectedStart.row, totalRows)}%`}
+                        r="3"
+                        fill="rgba(236,72,153,0.3)"
+                        className="animate-ping"
+                      />
+                    )}
+                  </svg>
+
+                </div>
+
+                {/* Action telemetry readout footer text */}
+                <div className="py-2.5 px-4 bg-slate-900 text-slate-100 rounded-xl text-xs flex items-center justify-between font-mono">
+                  <span>INFO ENGINE:</span>
+                  <span className="text-pink-300 font-semibold">{activeMessage}</span>
+                </div>
+
+              </div>
+
+              {/* Sample uploaded Thumbnail Source Preview (if we loaded some files) */}
+              {image && image !== "demo" && (
+                <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex items-center space-x-4">
+                  <div className="w-16 h-16 rounded-xl bg-slate-50 overflow-hidden relative shrink-0 border border-slate-200">
+                    <img src={image} className="object-cover w-full h-full" alt="source input" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-semibold text-slate-900 leading-none mb-1">OCR Image Source</h4>
+                    <p className="text-xs text-slate-500 leading-relaxed">
+                      This is the active file currently mapped to the grid coordinates matrix above. Keep files focused clearly for best spelling results.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+            </div>
+
+            {/* Right Hand: Solved checklist and word bank lists card */}
+            <div className="lg:col-span-1 space-y-6">
+              
+              <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-6">
+                
+                {/* Checklist title */}
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="space-y-0.5">
+                    <h3 className="text-lg font-bold text-slate-950 font-serif">Word Bank</h3>
+                    <p className="text-xs text-slate-400 uppercase tracking-widest font-mono">Checklist Lists</p>
+                  </div>
+
+                  <div className="bg-pink-100 text-pink-700 px-3 py-1 font-bold font-mono text-sm rounded-full flex items-center space-x-1 shadow-sm shadow-pink-500/5">
+                    <Check className="w-4 h-4" />
+                    <span>{foundWords.length}/{words.length}</span>
+                  </div>
+                </div>
+
+                {/* Sub status details details */}
+                {words.length === 0 ? (
+                  <div className="p-8 text-center text-slate-400 space-y-3">
+                    <BookOpen className="w-12 h-12 text-slate-200 mx-auto" />
+                    <p className="text-sm">No keywords loaded inside bank.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    
+                    {/* Word bank wrapper */}
+                    <div className="grid grid-cols-2 gap-2 max-h-[360px] overflow-y-auto pr-1">
+                      {words.map((wordStr, index) => {
+                        const isFound = foundWords.includes(wordStr);
+                        return (
+                          <div
+                            key={`checklist-${wordStr}`}
+                            onMouseEnter={() => setHoveredWord(wordStr)}
+                            onMouseLeave={() => setHoveredWord(null)}
+                            className={`p-2.5 rounded-xl border transition-all duration-150 flex items-center justify-between text-xs font-semibold cursor-pointer ${
+                              isFound
+                                ? "bg-emerald-50 border-emerald-100 text-emerald-800"
+                                : "bg-slate-50 border-slate-200 hover:border-slate-300 text-slate-700"
+                            }`}
+                          >
+                            <span className="tracking-wide uppercase truncate mr-1">{wordStr}</span>
+                            {isFound ? (
+                              <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                            ) : (
+                              <div className="w-4 h-4 rounded-full border border-slate-300 shrink-0" />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="text-[11px] text-slate-400 capitalize text-center pt-2 leading-relaxed">
+                      *Hover mouse over any checklist keyword to blink its puzzle coordinates highlights.
+                    </div>
+
+                  </div>
+                )}
+
+              </div>
+
+              {/* Tips block advice card */}
+              <div className="rounded-3xl p-6 bg-gradient-to-br from-indigo-900 to-slate-950 text-white shadow-sm space-y-4 relative overflow-hidden">
+                {/* Background layout decor */}
+                <div className="absolute right-0 bottom-0 text-slate-800/10 font-bold font-hand text-8xl pointer-events-none select-none">
+                  A.I.
+                </div>
+                
+                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-pink-300">
+                  <Lightbulb className="w-5 h-5" />
+                </div>
+
+                <div className="space-y-1.5">
+                  <h4 className="font-semibold text-slate-100 font-serif text-lg leading-tight">Supported Puzzle Modes</h4>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    WordSolve AI parses horizontal, vertical, and diagonal paths in both standard or reverse directions!
+                  </p>
+                </div>
+
+                <div className="h-px bg-white/10" />
+
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2 text-xs text-slate-300">
+                    <CheckCircle className="w-3.5 h-3.5 text-pink-300" />
+                    <span>Works on blurry cell photos</span>
+                  </div>
+                  <div className="flex items-center space-x-2 text-xs text-slate-300">
+                    <CheckCircle className="w-3.5 h-3.5 text-pink-300" />
+                    <span>Resolves custom decorative fonts</span>
+                  </div>
+                  <div className="flex items-center space-x-2 text-xs text-slate-300">
+                    <CheckCircle className="w-3.5 h-3.5 text-pink-300" />
+                    <span>Handles skewed screenshots safely</span>
+                  </div>
                 </div>
               </div>
-            )}
+
+            </div>
+
+          </motion.div>
+        )}
+
+      </main>
+
+      {/* Persistent Elegant Footer block */}
+      <footer className="w-full bg-white border-t border-slate-200 mt-12 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-left">
+          <div className="space-y-1">
+            <div className="text-sm font-bold text-slate-800 font-serif">WordSolve AI</div>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Experience prompt, premium OCR detection. Powered securely server-side by Google Gemini Vision.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap justify-center gap-4 text-xs font-semibold text-slate-500">
+            <a href="/privacy.html" target="_blank" className="hover:text-slate-800 underline transition">
+              Privacy Policy
+            </a>
+            <span className="text-slate-300">•</span>
+            <span className="text-slate-400">© 2026 WordSolve AI. All rights reserved.</span>
           </div>
         </div>
-      </section>
-
-      {/* Floating Animated Scribble Doodles */}
-      <AnimatePresence>
-        {doodles.map((d) => (
-          <motion.div
-            key={d.id}
-            className="float-doodle"
-            initial={{ opacity: 0, y: 30, rotate: -5 }}
-            animate={{ opacity: 0.5, y: -80, rotate: 5 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 6, ease: "easeOut" }}
-            style={{
-              left: d.left,
-              top: d.top,
-              color: d.color,
-              fontFamily: "var(--font-hand)",
-              transform: "translate(-50%, -50%)",
-              zIndex: 9999,
-              pointerEvents: "none"
-            }}
-          >
-            {d.text}
-          </motion.div>
-        ))}
-      </AnimatePresence>
-
-      {/* Footer block */}
-      <footer>
-        <div className="footer-logo">PuzzleInk</div>
-        <p className="footer-tagline">made for puzzle lovers ✦ runs entirely in your browser</p>
-        <div className="footer-bottom">&copy; 2026 PuzzleInk. Powered by Gemini AI. No data collected. Ever.</div>
-        <div className="footer-links">
-          <a href="#solver" onClick={scrollToSolver}>Return to Solver</a>
-        </div>
       </footer>
-    </>
+    </div>
   );
 }
