@@ -345,6 +345,13 @@
                   <span>Solve All Words</span>
                 </button>
                 <button
+                  id="edit-grid-btn"
+                  class="px-4 py-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 rounded-full text-xs font-semibold cursor-pointer transition"
+                  title="Edit grid letters"
+                >
+                  Edit Grid
+                </button>
+                <button
                   id="reset-puzzle-btn"
                   class="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 border border-slate-200 rounded-full cursor-pointer transition"
                   title="Upload New Puzzle"
@@ -645,6 +652,7 @@
         fileInput.addEventListener("change", handleFileChange);
         loadDemoBtn.addEventListener("click", loadDemo);
         solveAllBtn.addEventListener("click", handleSolveAll);
+        document.getElementById("edit-grid-btn")?.addEventListener("click", handleEditSolvedGrid);
         resetPuzzleBtn.addEventListener("click", handleReset);
         dismissErrorBtn.addEventListener("click", () => {
           state.error = null;
@@ -1136,6 +1144,8 @@
         const colPitch = median(colGaps) || geometry.medianHeight * 1.8;
 
         // One reusable worker avoids creating hundreds of OCR workers.
+        const cellRecords = [];
+
         const worker = await Tesseract.createWorker("eng", 1, {
           logger: message => {
             if (message.status === "recognizing text" && typeof message.progress === "number") {
@@ -1191,6 +1201,12 @@
               const first = await worker.recognize(cellData);
               let symbol = extractBestSingleLetter(first.data);
 
+              // Resolve the especially common O/C confusion with a restricted
+              // alphabet pass before falling back to the broader retry.
+              if (symbol && (symbol.ocAmbiguous || ((symbol.text === 'O' || symbol.text === 'C') && symbol.confidence < 88))) {
+                symbol = await resolveOCAmbiguity(worker, cellCanvas, symbol);
+              }
+
               // If confidence is weak, run one local threshold pass on the SAME cell.
               // This catches light/anti-aliased screenshot glyphs without doing a
               // second OCR call for every clean cell.
@@ -1214,7 +1230,7 @@
 
                 const second = await worker.recognize(thresholdCanvas.toDataURL("image/png"));
                 const alternative = extractBestSingleLetter(second.data);
-                if (alternative && (!symbol || alternative.confidence > symbol.confidence)) {
+                if (alternative && (!symbol || alternative.confidence > symbol.confidence + (symbol.ocResolved ? 8 : 0))) {
                   symbol = alternative;
                 }
               }
@@ -1225,6 +1241,8 @@
                 result[r][c] = "";
               }
 
+              cellRecords.push({ r, c, canvas: cellCanvas, symbol: symbol ? { ...symbol } : null });
+
               processed++;
               if (processed % 12 === 0 || processed === total) {
                 state.infoText = `Refining letters... ${processed}/${total}`;
@@ -1233,10 +1251,121 @@
             }
           }
 
+          await refineAmbiguousOCByTemplate(cellRecords, result);
+
           return result;
         } finally {
           await worker.terminate();
         }
+      }
+
+      function refineAmbiguousOCByTemplate(cellRecords, result) {
+        const seedsO = [];
+        const seedsC = [];
+
+        for (const rec of cellRecords) {
+          const s = rec.symbol;
+          if (!s || (s.text !== "O" && s.text !== "C") || s.confidence < 88) continue;
+          const descriptor = buildGlyphDescriptor(rec.canvas);
+          if (!descriptor) continue;
+          (s.text === "O" ? seedsO : seedsC).push(descriptor);
+        }
+
+        if (!seedsO.length || !seedsC.length) return;
+
+        for (const rec of cellRecords) {
+          const s = rec.symbol;
+          if (!s || (s.text !== "O" && s.text !== "C")) continue;
+          if (s.confidence >= 94 && !s.ocAmbiguous) continue;
+
+          const descriptor = buildGlyphDescriptor(rec.canvas);
+          if (!descriptor) continue;
+
+          const oScore = prototypeSimilarity(descriptor, seedsO);
+          const cScore = prototypeSimilarity(descriptor, seedsC);
+
+          // Require a meaningful visual margin before changing OCR output.
+          if (Math.abs(oScore - cScore) < 0.025) continue;
+
+          result[rec.r][rec.c] = oScore > cScore ? "O" : "C";
+        }
+      }
+
+      function buildGlyphDescriptor(canvas) {
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const { width: w, height: h, data } = img;
+        const mask = new Uint8Array(w * h);
+        let minX = w, minY = h, maxX = -1, maxY = -1;
+
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const i = (y * w + x) * 4;
+            const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+            if (gray < 205) {
+              mask[y * w + x] = 1;
+              minX = Math.min(minX, x);
+              minY = Math.min(minY, y);
+              maxX = Math.max(maxX, x);
+              maxY = Math.max(maxY, y);
+            }
+          }
+        }
+
+        if (maxX < minX || maxY < minY) return null;
+
+        const pad = Math.max(2, Math.round(Math.max(maxX - minX + 1, maxY - minY + 1) * 0.08));
+        minX = Math.max(0, minX - pad);
+        minY = Math.max(0, minY - pad);
+        maxX = Math.min(w - 1, maxX + pad);
+        maxY = Math.min(h - 1, maxY + pad);
+
+        const size = 32;
+        const normalized = new Float32Array(size * size);
+        const bw = maxX - minX + 1;
+        const bh = maxY - minY + 1;
+        const scale = Math.min((size - 4) / bw, (size - 4) / bh);
+        const dw = Math.max(1, Math.round(bw * scale));
+        const dh = Math.max(1, Math.round(bh * scale));
+        const ox = Math.floor((size - dw) / 2);
+        const oy = Math.floor((size - dh) / 2);
+
+        for (let y = 0; y < dh; y++) {
+          for (let x = 0; x < dw; x++) {
+            const sx = Math.min(maxX, minX + Math.floor(x / scale));
+            const sy = Math.min(maxY, minY + Math.floor(y / scale));
+            normalized[(oy + y) * size + ox + x] = mask[sy * w + sx] ? 1 : 0;
+          }
+        }
+
+        let rightMiddle = 0;
+        let rightTotal = 0;
+        for (let y = 8; y < 24; y++) {
+          for (let x = 20; x < 29; x++) {
+            rightTotal++;
+            rightMiddle += normalized[y * size + x];
+          }
+        }
+
+        return { normalized, rightMiddleRatio: rightTotal ? rightMiddle / rightTotal : 0 };
+      }
+
+      function prototypeSimilarity(candidate, prototypes) {
+        let best = -1;
+        for (const proto of prototypes) {
+          let dot = 0, aa = 0, bb = 0;
+          for (let i = 0; i < candidate.normalized.length; i++) {
+            const a = candidate.normalized[i];
+            const b = proto.normalized[i];
+            dot += a * b;
+            aa += a * a;
+            bb += b * b;
+          }
+          const cosine = dot / Math.sqrt((aa || 1) * (bb || 1));
+          const openingPenalty = Math.abs(candidate.rightMiddleRatio - proto.rightMiddleRatio) * 0.20;
+          best = Math.max(best, cosine - openingPenalty);
+        }
+        return best;
       }
 
       function extractBestSingleLetter(data) {
@@ -1244,14 +1373,256 @@
         const candidates = symbols
           .map(s => ({
             text: normalizeOCRLetter(s.text),
+            rawText: String(s.text || '').toUpperCase().trim(),
             confidence: Number(s.confidence ?? 0),
             bbox: s.bbox || null
           }))
-          .filter(s => s.text && s.text.length === 1 && s.confidence >= 20 && s.bbox);
+          .filter(s => s.text && s.text.length === 1 && s.confidence >= 18 && s.bbox);
 
         if (!candidates.length) return null;
+
+        // Tesseract is particularly prone to confusing O and C in isolated
+        // screenshot glyphs. Prefer the strongest candidate, but make the
+        // ambiguity available to the cell-level resolver below.
         candidates.sort((a, b) => b.confidence - a.confidence);
-        return candidates[0];
+        const best = candidates[0];
+        const oc = candidates.filter(c => c.text === 'O' || c.text === 'C')
+          .sort((a, b) => b.confidence - a.confidence);
+
+        if (oc.length >= 2 && Math.abs(oc[0].confidence - oc[1].confidence) <= 12) {
+          best.ocAmbiguous = true;
+          best.ocCandidates = oc.slice(0, 2);
+        }
+
+        return best;
+      }
+
+      function preprocessSingleCellCanvas(sourceCanvas) {
+        const out = document.createElement('canvas');
+        out.width = sourceCanvas.width;
+        out.height = sourceCanvas.height;
+        const ctx = out.getContext('2d', { willReadFrequently: true });
+        const srcCtx = sourceCanvas.getContext('2d', { willReadFrequently: true });
+        const image = srcCtx.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
+        const data = image.data;
+
+        // Normalize to white background + dark glyph. This is intentionally
+        // gentle so anti-aliased curves remain intact.
+        for (let i = 0; i < data.length; i += 4) {
+          const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+          const stretched = Math.max(0, Math.min(255, (gray - 20) * 1.25));
+          data[i] = stretched;
+          data[i + 1] = stretched;
+          data[i + 2] = stretched;
+          data[i + 3] = 255;
+        }
+        ctx.putImageData(image, 0, 0);
+        return out;
+      }
+
+      function analyzeOCGlyph(canvas) {
+        // Robust O-vs-C cue: O normally contains an enclosed background
+        // region (a hole), while C does not. We analyze several thresholds
+        // and return normalized shape features.
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        const source = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const thresholds = [120, 150, 180, 205];
+        const analyses = [];
+
+        for (const threshold of thresholds) {
+          const w = source.width;
+          const h = source.height;
+          const mask = new Uint8Array(w * h);
+
+          // Restrict analysis to the central glyph area so padding/background
+          // does not create fake holes.
+          const xPad = Math.floor(w * 0.14);
+          const yPad = Math.floor(h * 0.12);
+          const x0 = xPad, x1 = w - xPad;
+          const y0 = yPad, y1 = h - yPad;
+
+          for (let y = y0; y < y1; y++) {
+            for (let x = x0; x < x1; x++) {
+              const i = (y * w + x) * 4;
+              const lum = 0.299 * source.data[i] + 0.587 * source.data[i + 1] + 0.114 * source.data[i + 2];
+              mask[y * w + x] = lum < threshold ? 1 : 0;
+            }
+          }
+
+          // Find connected background regions. A background component that
+          // does NOT touch the crop boundary is an enclosed hole -> strong O cue.
+          const seen = new Uint8Array(w * h);
+          let enclosedBest = 0;
+          let enclosedCount = 0;
+          const queueX = new Int32Array(w * h);
+          const queueY = new Int32Array(w * h);
+
+          for (let y = y0 + 1; y < y1 - 1; y++) {
+            for (let x = x0 + 1; x < x1 - 1; x++) {
+              const start = y * w + x;
+              if (seen[start] || mask[start]) continue;
+
+              let head = 0, tail = 0, size = 0;
+              let touchesBoundary = false;
+              queueX[tail] = x;
+              queueY[tail] = y;
+              tail++;
+              seen[start] = 1;
+
+              while (head < tail) {
+                const cx = queueX[head];
+                const cy = queueY[head];
+                head++;
+                size++;
+
+                if (cx <= x0 || cx >= x1 - 1 || cy <= y0 || cy >= y1 - 1) {
+                  touchesBoundary = true;
+                }
+
+                const neighbors = [[cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]];
+                for (const [nx, ny] of neighbors) {
+                  if (nx <= x0 || nx >= x1 - 1 || ny <= y0 || ny >= y1 - 1) continue;
+                  const ni = ny * w + nx;
+                  if (!seen[ni] && !mask[ni]) {
+                    seen[ni] = 1;
+                    queueX[tail] = nx;
+                    queueY[tail] = ny;
+                    tail++;
+                  }
+                }
+              }
+
+              if (!touchesBoundary && size >= Math.max(12, w * h * 0.002)) {
+                enclosedCount++;
+                enclosedBest = Math.max(enclosedBest, size);
+              }
+            }
+          }
+
+          const centralArea = Math.max(1, (x1 - x0) * (y1 - y0));
+          const holeRatio = enclosedBest / centralArea;
+
+          // C tends to have considerably more dark pixels on the left and
+          // top/bottom while leaving the right-middle open. O is more balanced.
+          let rightMiddleDark = 0, rightMiddleTotal = 0;
+          const rx0 = Math.floor(w * 0.62), rx1 = Math.floor(w * 0.90);
+          const ry0 = Math.floor(h * 0.34), ry1 = Math.floor(h * 0.66);
+          for (let y = ry0; y < ry1; y++) {
+            for (let x = rx0; x < rx1; x++) {
+              rightMiddleTotal++;
+              if (mask[y * w + x]) rightMiddleDark++;
+            }
+          }
+          const rightMiddleRatio = rightMiddleTotal ? rightMiddleDark / rightMiddleTotal : 0;
+
+          analyses.push({ threshold, holeRatio, rightMiddleRatio, enclosedCount });
+        }
+
+        const hole = Math.max(...analyses.map(a => a.holeRatio));
+        const avgRight = analyses.reduce((sum, a) => sum + a.rightMiddleRatio, 0) / analyses.length;
+        const stableHole = analyses.filter(a => a.holeRatio > 0.008).length;
+
+        return { holeRatio: hole, stableHole, avgRight, analyses };
+      }
+
+      function scoreOCShape(canvas) {
+        const a = analyzeOCGlyph(canvas);
+        // Return a signed score: positive strongly favors O, negative favors C.
+        // The enclosed-hole cue is intentionally much stronger than the
+        // right-edge cue because it is the defining geometric difference.
+        const holeScore = Math.min(45, a.holeRatio * 700);
+        const stabilityBonus = Math.min(18, a.stableHole * 4.5);
+        const rightOpenScore = Math.max(-15, Math.min(15, (0.075 - a.avgRight) * 220));
+        return holeScore + stabilityBonus + rightOpenScore;
+      }
+
+      async function resolveOCAmbiguity(worker, cellCanvas, initialSymbol) {
+        if (!initialSymbol || !['O', 'C'].includes(initialSymbol.text)) return initialSymbol;
+
+        // First ask Tesseract explicitly to distinguish only O vs C. Running
+        // the same glyph through a restricted alphabet often improves this
+        // exact confusion without changing the normal OCR path.
+        await worker.setParameters({
+          tessedit_pageseg_mode: '10',
+          tessedit_char_whitelist: 'OC',
+          user_defined_dpi: '400'
+        });
+
+        const attempts = [];
+        const normalized = preprocessSingleCellCanvas(cellCanvas);
+        attempts.push(normalized);
+
+        const threshold = document.createElement('canvas');
+        threshold.width = normalized.width;
+        threshold.height = normalized.height;
+        const tctx = threshold.getContext('2d', { willReadFrequently: true });
+        tctx.drawImage(normalized, 0, 0);
+        const img = tctx.getImageData(0, 0, threshold.width, threshold.height);
+        for (let i = 0; i < img.data.length; i += 4) {
+          const gray = img.data[i];
+          const v = gray < 165 ? 0 : 255;
+          img.data[i] = v;
+          img.data[i + 1] = v;
+          img.data[i + 2] = v;
+          img.data[i + 3] = 255;
+        }
+        tctx.putImageData(img, 0, 0);
+        attempts.push(threshold);
+
+        const results = [];
+        for (const attempt of attempts) {
+          const r = await worker.recognize(attempt.toDataURL('image/png'));
+          const candidate = extractBestSingleLetter(r.data);
+          if (candidate && (candidate.text === 'O' || candidate.text === 'C')) {
+            results.push(candidate);
+          }
+        }
+
+        // A second segmentation mode is useful for isolated O/C glyphs.
+        await worker.setParameters({
+          tessedit_pageseg_mode: '13',
+          tessedit_char_whitelist: 'OC',
+          user_defined_dpi: '400'
+        });
+        const rawLine = await worker.recognize(normalized.toDataURL('image/png'));
+        const rawCandidate = extractBestSingleLetter(rawLine.data);
+        if (rawCandidate && (rawCandidate.text === 'O' || rawCandidate.text === 'C')) {
+          results.push(rawCandidate);
+        }
+
+        // Restore the normal alphabet for subsequent cells.
+        await worker.setParameters({
+          tessedit_pageseg_mode: '10',
+          tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+          user_defined_dpi: '400'
+        });
+
+        if (!results.length) return initialSymbol;
+
+        const oResults = results.filter(r => r.text === 'O').map(r => r.confidence);
+        const cResults = results.filter(r => r.text === 'C').map(r => r.confidence);
+        const oMax = oResults.length ? Math.max(...oResults) : 0;
+        const cMax = cResults.length ? Math.max(...cResults) : 0;
+        const oAvg = oResults.length ? oResults.reduce((a, b) => a + b, 0) / oResults.length : 0;
+        const cAvg = cResults.length ? cResults.reduce((a, b) => a + b, 0) / cResults.length : 0;
+
+        const shapeScore = scoreOCShape(normalized);
+
+        // Give the best restricted-O/C OCR result the most weight, then use
+        // the mean of the alternate passes as a stabilizer. The glyph-shape
+        // score is a tie-breaker specifically designed for O/C.
+        const finalO = oMax * 0.65 + oAvg * 0.35 + Math.max(0, shapeScore);
+        const finalC = cMax * 0.65 + cAvg * 0.35 + Math.max(0, -shapeScore);
+
+        if (Math.max(finalO, finalC) < 25) return initialSymbol;
+
+        const resolved = finalO >= finalC ? 'O' : 'C';
+        return {
+          ...initialSymbol,
+          text: resolved,
+          confidence: Math.max(finalO, finalC),
+          ocResolved: true
+        };
       }
 
       async function loadImageElement(dataUrl) {
@@ -1620,6 +1991,20 @@
         render();
       }
 
+      function handleEditSolvedGrid() {
+        if (!state.grid || !state.grid.length) return;
+
+        // Move the solved puzzle back into the same review/edit workflow.
+        // Keep the current words so the user can correct letters and re-solve.
+        state.extractedGrid = state.grid.map(row => [...row]);
+        state.extractedWords = [...(state.words || [])];
+        state.reviewMode = true;
+        state.error = null;
+        state.selectedStartCell = null;
+        state.infoText = "Edit any grid letters, then solve again.";
+        render();
+      }
+
       function handleReset() {
         state.image = null;
         state.grid = null;
@@ -1835,65 +2220,92 @@
 
       function renderDrawing() {
         const drawingSvg = document.getElementById("drawing-svg");
+        const letterGrid = document.getElementById("letter-grid");
         drawingSvg.innerHTML = "";
-        if (!state.grid) return;
+        if (!state.grid || !letterGrid) return;
 
         const rows = state.grid.length;
-        const cols = state.grid[0].length;
+        const cols = state.grid[0]?.length || 0;
+        if (!rows || !cols) return;
+
+        // Use the actual rendered cell centers instead of percentage coordinates.
+        // This keeps highlight lines aligned with the visible letters even when
+        // the board has padding, responsive sizing, or a different aspect ratio.
+        const svgRect = drawingSvg.getBoundingClientRect();
+        if (!svgRect.width || !svgRect.height) return;
+        drawingSvg.setAttribute("viewBox", `0 0 ${svgRect.width} ${svgRect.height}`);
+        drawingSvg.setAttribute("preserveAspectRatio", "none");
+
+        const cells = Array.from(letterGrid.children);
+        const centerOf = (row, col) => {
+          const el = cells[row * cols + col];
+          if (!el) return null;
+          const rect = el.getBoundingClientRect();
+          return {
+            x: rect.left + rect.width / 2 - svgRect.left,
+            y: rect.top + rect.height / 2 - svgRect.top
+          };
+        };
 
         state.solutions.forEach((sol, index) => {
           const isFound = state.foundWords.includes(sol.word);
           const isHovered = state.hoveredWord === sol.word;
           if (!isFound && !isHovered) return;
 
-          const x1Pct = getPct(sol.startCol, cols);
-          const y1Pct = getPct(sol.startRow, rows);
-          const x2Pct = getPct(sol.endCol, cols);
-          const y2Pct = getPct(sol.endRow, rows);
-          const colScheme = Palette[index % Palette.length];
+          const start = centerOf(sol.startRow, sol.startCol);
+          const end = centerOf(sol.endRow, sol.endCol);
+          if (!start || !end) return;
 
+          const colScheme = Palette[index % Palette.length];
           const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
 
-          // Glow background trace line
           const line1 = document.createElementNS("http://www.w3.org/2000/svg", "line");
-          line1.setAttribute("x1", `${x1Pct}%`);
-          line1.setAttribute("y1", `${y1Pct}%`);
-          line1.setAttribute("x2", `${x2Pct}%`);
-          line1.setAttribute("y2", `${y2Pct}%`);
+          line1.setAttribute("x1", start.x);
+          line1.setAttribute("y1", start.y);
+          line1.setAttribute("x2", end.x);
+          line1.setAttribute("y2", end.y);
           line1.setAttribute("stroke", colScheme.fill);
-          line1.setAttribute("stroke-width", "6");
+          line1.setAttribute("stroke-width", Math.max(12, Math.min(20, svgRect.width / cols * 0.55)));
           line1.setAttribute("stroke-linecap", "round");
           g.appendChild(line1);
 
-          // Solid precise core vector
           const line2 = document.createElementNS("http://www.w3.org/2000/svg", "line");
-          line2.setAttribute("x1", `${x1Pct}%`);
-          line2.setAttribute("y1", `${y1Pct}%`);
-          line2.setAttribute("x2", `${x2Pct}%`);
-          line2.setAttribute("y2", `${y2Pct}%`);
+          line2.setAttribute("x1", start.x);
+          line2.setAttribute("y1", start.y);
+          line2.setAttribute("x2", end.x);
+          line2.setAttribute("y2", end.y);
           line2.setAttribute("stroke", colScheme.stroke);
-          line2.setAttribute("stroke-width", "1.5");
+          line2.setAttribute("stroke-width", isHovered ? "4" : "2.5");
           line2.setAttribute("stroke-linecap", "round");
-          line2.setAttribute("opacity", isHovered ? "1" : "0.75");
-          if (isHovered) {
-             line2.setAttribute("stroke-width", "2.5");
-          }
+          line2.setAttribute("opacity", isHovered ? "1" : "0.82");
           g.appendChild(line2);
 
           drawingSvg.appendChild(g);
         });
 
-        // Selection pin pulse guides
         if (state.selectedStartCell) {
-          const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-          circle.setAttribute("cx", `${getPct(state.selectedStartCell.col, cols)}%`);
-          circle.setAttribute("cy", `${getPct(state.selectedStartCell.row, rows)}%`);
-          circle.setAttribute("r", "2.5");
-          circle.setAttribute("fill", "rgba(236,72,153,0.4)");
-          circle.setAttribute("class", "animate-ping");
-          drawingSvg.appendChild(circle);
+          const point = centerOf(state.selectedStartCell.row, state.selectedStartCell.col);
+          if (point) {
+            const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            circle.setAttribute("cx", point.x);
+            circle.setAttribute("cy", point.y);
+            circle.setAttribute("r", "10");
+            circle.setAttribute("fill", "rgba(236,72,153,0.4)");
+            circle.setAttribute("class", "animate-ping");
+            drawingSvg.appendChild(circle);
+          }
         }
       }
+
+      let drawingResizeQueued = false;
+      window.addEventListener("resize", () => {
+        if (!state.grid || drawingResizeQueued) return;
+        drawingResizeQueued = true;
+        requestAnimationFrame(() => {
+          drawingResizeQueued = false;
+          renderDrawing();
+        });
+      });
 
       function renderWordBank() {
         const bankGrid = document.getElementById("word-bank-grid");
