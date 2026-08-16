@@ -4,20 +4,1937 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="google-site-verification" content="lHg57fNLFMxdPztyQiVfEdxN7XQOj1guhUVKBqlF79U" />
-    <meta name="google-adsense-account" content="ca-pub-9549040020848716">
-    <title>WordSolve AI — AI Word Search Solver</title>
-    <meta name="description" content="Experience the premium word search solver. Upload any puzzle image and let AI instantly detect and highlight all hidden words with stunning accuracy. Free forever.">
-    <meta property="og:title" content="WordSolve AI - The Ultimate AI Word Search Solver">
-    <meta property="og:description" content="Upload word search puzzle images and instantly solve them using advanced AI OCR technology. Trusted by puzzle lovers worldwide.">
-    <meta property="og:type" content="website">
-    <meta name="keywords" content="word search solver, AI puzzle solver, OCR word detection, free puzzle solver, word search AI, instant puzzle solutions">
-    <link rel="icon" type="image/jpeg" href="word.jpg">
+    <title>WordSolve AI — Premium Word Search Solver</title>
+    <meta name="description" content="Word Search Solver with client-side OCR. Crop the letter grid, enter the words you want to find, and solve the puzzle instantly in your browser.">
+    
+    <!-- Primary Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&family=DM+Sans:ital,opsz,wght@0,9..40,300..900;1,9..40,300..900&family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['"DM Sans"', 'sans-serif'],
+              serif: ['"DM Serif Display"', 'serif'],
+              hand: ['"Caveat"', 'cursive'],
+              mono: ['"JetBrains Mono"', 'monospace'],
+            }
+          }
+        }
+      }
+    </script>
+
+    <!-- Tesseract.js OCR Library -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.4/dist/tesseract.min.js"></script>
+
+    <!-- Custom Micro-interactions & Beam Styles -->
+    <style>
+      @keyframes scan-beam {
+        0% { top: 0%; opacity: 0.8; }
+        50% { top: 100%; opacity: 1; }
+        100% { top: 0%; opacity: 0.8; }
+      }
+      .laser-beam {
+        animation: scan-beam 2.5s ease-in-out infinite;
+      }
+      
+      .fade-in-up {
+        animation: fadeInUp 0.4s ease-out forwards;
+      }
+      @keyframes fadeInUp {
+        from {
+          opacity: 0;
+          transform: translateY(12px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      /* Scrollbar beauty styling */
+      ::-webkit-scrollbar {
+        width: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: rgba(148, 163, 184, 0.3);
+        border-radius: 9999px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: rgba(148, 163, 184, 0.5);
+      }
+    </style>
   </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+  <body class="bg-slate-50 text-slate-800 font-sans selection:bg-pink-100 min-h-screen flex flex-col justify-between">
+    
+    <!-- Application Header navigation toolbar -->
+    <header class="sticky top-0 z-40 w-full bg-white/80 backdrop-blur-md border-b border-slate-200">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-pink-500 to-indigo-600 flex items-center justify-center text-white font-bold shadow-lg shadow-pink-500/20">
+            <!-- Sparkles SVG icon -->
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275Z"/><path d="m5 3 1 2.5L8.5 6 6 7 5 9.5 4 7 1.5 6 4 5.5Z"/><path d="m19 17 1 2.5 2.5.5-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1Z"/></svg>
+          </div>
+          <div>
+            <h1 class="text-2xl font-serif tracking-tight text-slate-900 leading-none">
+              WordSolve <span class="font-hand text-pink-500 font-bold text-3xl align-middle pl-0.5">AI</span>
+            </h1>
+            <p class="text-xs text-slate-500 tracking-wider uppercase font-mono mt-1">Premium Puzzle Solver</p>
+          </div>
+        </div>
+        <div class="flex items-center space-x-3 sm:space-x-4">
+          <button
+            id="load-demo-btn"
+            class="px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-full transition-all duration-200 flex items-center space-x-1.5 cursor-pointer"
+          >
+            <!-- Flame SVG icon -->
+            <svg class="text-amber-500 animate-pulse" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3q1 4 4 6.5t3 5.5a1 1 0 0 1-14 0 5 5 0 0 1 1-3 1 1 0 0 0 5 0c0-2-1.5-3-1.5-5q0-2 2.5-4"/></svg>
+            <span class="text-amber-500 font-semibold">Load Demo</span>
+          </button>
+          <a href="#welcome-section" class="text-sm font-medium text-slate-500 hover:text-slate-800 transition duration-150 hidden md:inline">
+            Overview
+          </a>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Workspace Area -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      
+      <!-- OCR Scanning/Processing Error Alert -->
+      <div id="error-alert" class="hidden mb-8 p-4 bg-rose-50 border border-rose-100 rounded-2xl flex items-start space-x-3 text-rose-800 shadow-sm fade-in-up">
+        <span class="text-rose-500 shrink-0 mt-0.5">
+          <!-- Alert Circle SVG icon -->
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        </span>
+        <div>
+          <h4 class="font-semibold text-rose-900">OCR Extraction Failed</h4>
+          <p id="error-alert-text" class="text-sm mt-0.5 leading-relaxed"></p>
+          <button
+            id="dismiss-error-btn"
+            class="mt-2 text-xs font-semibold text-rose-700 underline hover:text-rose-900 cursor-pointer"
+          >
+            Dismiss & try another image
+          </button>
+        </div>
+      </div>
+
+      <!-- VIEW A: Landing Screen Drop Zone (Initial State) -->
+      <div id="landing-screen" class="space-y-12">
+        <div id="welcome-section" class="text-center max-w-2xl mx-auto space-y-4 pt-4">
+          <h2 class="text-4xl sm:text-5xl font-serif text-slate-900 tracking-tight leading-tight">
+            Solve any Word Search <br />
+            puzzle in <span class="underline decoration-pink-400 decoration-wavy underline-offset-8">seconds</span>
+          </h2>
+          <p class="text-lg text-slate-600 font-sans tracking-wide leading-relaxed">
+            Take a quick photo or screenshot of any word search layout. Upload it below, and let client-side OCR reads the letter grid, then you enter the words you want to find.
+          </p>
+        </div>
+
+        <div
+          id="dropzone"
+          class="border-2 border-dashed border-slate-300 hover:border-pink-400 bg-white hover:bg-slate-50 rounded-3xl p-10 sm:p-16 text-center cursor-pointer transition-all duration-300 shadow-sm shadow-slate-100 hover:shadow-md flex flex-col items-center group max-w-3xl mx-auto"
+        >
+          <input
+            type="file"
+            id="file-input"
+            accept="image/*"
+            class="hidden"
+          />
+          <div class="w-16 h-16 rounded-2xl bg-pink-50 text-pink-500 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300 shadow-sm">
+            <!-- Upload Icon -->
+            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          </div>
+          <h3 class="text-xl font-semibold text-slate-800">Drag and drop puzzle image</h3>
+          <p class="text-sm text-slate-500 mt-2 max-w-md leading-relaxed">
+            Supports PNG, JPG, or screen captures. Make sure character rows are flat and legible.
+          </p>
+          <div class="mt-8 flex items-center space-x-3">
+            <span class="h-px w-8 bg-slate-200"></span>
+            <span class="text-xs text-slate-400 font-mono tracking-wider uppercase">or</span>
+            <span class="h-px w-8 bg-slate-200"></span>
+          </div>
+          <button
+            type="button"
+            class="mt-6 px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-full text-sm font-medium transition shadow-sm cursor-pointer"
+          >
+            Browse local files
+          </button>
+        </div>
+
+        <!-- Pillar Guidelines Info cards -->
+        <div class="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 pt-8">
+          <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+            <div class="text-2xl font-hand text-pink-500 font-bold">01. Snap Photo</div>
+            <h4 class="font-semibold text-slate-800">Upload Puzzle Scan</h4>
+            <p class="text-sm text-slate-600 leading-relaxed font-sans">
+              Supports photo scans or screenshots. Crop the letter grid from a screenshot or photo so the OCR only reads the puzzle letters.
+            </p>
+          </div>
+          <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+            <div class="text-2xl font-hand text-indigo-500 font-bold">02. OCR Analysis</div>
+            <h4 class="font-semibold text-slate-800">Layout Extraction</h4>
+            <p class="text-sm text-slate-600 leading-relaxed font-sans">
+              Client-side OCR converts the cropped grid into an editable letter matrix.
+            </p>
+          </div>
+          <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+            <div class="text-2xl font-hand text-emerald-500 font-bold">03. Trace & Solve</div>
+            <h4 class="font-semibold text-slate-800">Interactive Glows</h4>
+            <p class="text-sm text-slate-600 leading-relaxed font-sans">
+              Draw vectors directly or hover target words to spot matches on your puzzle board instantly.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW B: Loading Screen -->
+      <div id="loading-screen" class="hidden max-w-2xl mx-auto rounded-3xl bg-white border border-slate-100 p-8 text-center space-y-8 shadow-md fade-in-up">
+        <div class="relative w-48 h-48 mx-auto bg-slate-50 border border-slate-200 rounded-2xl overflow-hidden flex items-center justify-center shadow-inner">
+          <span class="text-slate-300">
+            <!-- File image big SVG icon -->
+            <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><circle cx="10" cy="12" r="2"/><path d="m20 17-1.296-1.296a2.41 2.41 0 0 0-3.408 0L9 22"/></svg>
+          </span>
+          <div class="absolute left-0 w-full h-1 bg-gradient-to-r from-transparent via-pink-400 to-transparent shadow-lg shadow-pink-400 laser-beam"></div>
+        </div>
+        <div class="space-y-3">
+          <h3 class="text-2xl font-serif text-slate-900 leading-tight">Processing with OCR...</h3>
+          <p class="text-sm text-slate-500 tracking-wide font-mono px-4 max-w-md mx-auto">
+            CURRENT OPERATION: <span id="loading-progress-text" class="text-indigo-600 animate-pulse font-semibold">Running character recognition...</span>
+          </p>
+        </div>
+        <div class="grid grid-cols-5 gap-3 max-w-sm mx-auto pt-2" id="loading-progress-bar">
+          <!-- Populated dynamically via state change loop -->
+        </div>
+        <p class="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
+          *Tesseract OCR runs in your browser. Initial processing may take a moment.
+        </p>
+      </div>
+
+      <!-- VIEW B1: Crop Grid Screen -->
+      <div id="crop-screen" class="hidden space-y-8 fade-in-up max-w-6xl mx-auto">
+        <div class="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-6">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div class="space-y-1">
+              <h3 class="text-2xl font-serif text-slate-900">Crop the Letter Grid</h3>
+              <p class="text-sm text-slate-500">Select only the letter grid. Leave the title and word list outside the crop.</p>
+            </div>
+            <button id="cancel-crop-btn" type="button" class="px-4 py-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 rounded-full text-xs font-semibold transition cursor-pointer">Cancel</button>
+          </div>
+
+          <div class="space-y-3">
+            <div id="crop-stage" class="relative bg-slate-900 rounded-2xl overflow-visible border border-slate-200 select-none mx-auto w-full max-w-5xl">
+              <canvas id="crop-canvas" class="block w-full h-auto rounded-2xl"></canvas>
+              <div id="crop-selection" class="absolute border-2 border-pink-500 bg-pink-500/10 pointer-events-none hidden">
+                <div data-crop-handle="nw" class="crop-handle absolute -top-2 -left-2 w-5 h-5 rounded-full bg-white border-2 border-pink-500 cursor-nwse-resize pointer-events-auto shadow-sm"></div>
+                <div data-crop-handle="ne" class="crop-handle absolute -top-2 -right-2 w-5 h-5 rounded-full bg-white border-2 border-pink-500 cursor-nesw-resize pointer-events-auto shadow-sm"></div>
+                <div data-crop-handle="sw" class="crop-handle absolute -bottom-2 -left-2 w-5 h-5 rounded-full bg-white border-2 border-pink-500 cursor-nesw-resize pointer-events-auto shadow-sm"></div>
+                <div data-crop-handle="se" class="crop-handle absolute -bottom-2 -right-2 w-5 h-5 rounded-full bg-white border-2 border-pink-500 cursor-nwse-resize pointer-events-auto shadow-sm"></div>
+              </div>
+            </div>
+            <p class="text-xs text-slate-500 text-center">Drag from one corner to the opposite corner to select the grid. You can redraw the selection as many times as needed.</p>
+          </div>
+
+          <div class="flex gap-3 border-t border-slate-100 pt-6">
+            <button id="reset-crop-btn" type="button" class="px-4 py-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 rounded-full text-sm font-semibold transition cursor-pointer">Reset</button>
+            <button id="use-grid-btn" type="button" class="flex-1 px-6 py-3 bg-gradient-to-r from-pink-500 to-indigo-600 hover:from-pink-600 hover:to-indigo-700 text-white rounded-full text-sm font-bold shadow-md shadow-pink-500/10 cursor-pointer transition-all duration-200 hover:scale-[1.02]">Use Selected Grid →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW B2: Review and Correct Screen -->
+      <div id="review-screen" class="hidden space-y-8 fade-in-up max-w-6xl mx-auto">
+        <div class="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-6">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div class="space-y-1">
+              <h3 class="text-2xl font-serif text-slate-900">Review & Correct Puzzle</h3>
+              <p class="text-sm text-slate-500">Edit any errors, then solve.</p>
+            </div>
+            <button
+              id="rescan-btn"
+              class="px-4 py-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 rounded-full text-xs font-semibold transition cursor-pointer"
+            >
+              ↻ Re-scan Image
+            </button>
+          </div>
+
+          <!-- Grid Section -->
+          <div class="space-y-4">
+            <div class="space-y-2">
+              <h4 class="font-bold text-slate-900 flex items-center gap-2">
+                <span>Letter Grid</span>
+                <span id="review-grid-dims" class="text-xs bg-slate-100 px-2 py-1 text-slate-600 rounded-full font-sans">0 × 0</span>
+              </h4>
+              <p class="text-sm text-slate-600">Click any cell to edit. Uncertain letters are highlighted.</p>
+            </div>
+            <div id="review-grid-container" class="bg-slate-50 p-6 rounded-2xl border border-slate-200 overflow-x-auto">
+              <div id="review-editable-grid" class="inline-grid gap-1 bg-slate-900 p-4 rounded-lg" style="min-width: min-content;">
+                <!-- Populated dynamically -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Words Section -->
+          <div class="space-y-4">
+            <div class="space-y-2">
+              <h4 class="font-bold text-slate-900">Words to Find</h4>
+              <p class="text-sm text-slate-600">Type or paste the words you want to find. Put one word or phrase on each line.</p>
+            </div>
+            <textarea
+              id="review-words-input"
+              rows="8"
+              spellcheck="false"
+              autocomplete="off"
+              class="w-full px-4 py-3 border border-slate-300 rounded-2xl text-sm font-semibold uppercase tracking-wide focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-100 resize-y"
+              placeholder="French Fries\nPotato Chips\nGummy Bears\nPizza Rolls"
+            ></textarea>
+            <p class="text-xs text-slate-400">Spaces and punctuation are ignored when searching, so “French Fries” is searched as FRENCHFRIES.</p>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="flex gap-3 border-t border-slate-100 pt-6">
+            <button
+              id="cancel-review-btn"
+              class="px-4 py-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 rounded-full text-sm font-semibold transition cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              id="solve-puzzle-btn"
+              class="flex-1 px-6 py-3 bg-gradient-to-r from-pink-500 to-indigo-600 hover:from-pink-600 hover:to-indigo-700 text-white rounded-full text-sm font-bold shadow-md shadow-pink-500/10 cursor-pointer transition-all duration-200 hover:scale-[1.02]"
+            >
+              Solve Puzzle →
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW C: Rich Interactive Gameplay Canvas Workspace (Coordinate Overlays map) -->
+      <div id="workspace-screen" class="hidden grid grid-cols-1 lg:grid-cols-3 gap-8 fade-in-up">
+        <!-- Interactive board block -->
+        <div class="lg:col-span-2 space-y-6">
+          <div class="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-6">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+              <div class="space-y-1">
+                <div class="text-xs text-slate-400 font-mono uppercase tracking-widest flex items-center space-x-1.5">
+                  <div class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></div>
+                  <span>Grid Live Layout</span>
+                </div>
+                <h3 class="text-lg font-bold text-slate-950 flex items-center gap-1.5 font-serif">
+                  <span>Interactive Letter Matrix</span>
+                  <span id="grid-dimensions-badge" class="text-xs bg-slate-100 px-2 py-0.5 text-slate-600 rounded-full font-sans">
+                    0 × 0
+                  </span>
+                </h3>
+              </div>
+              <div class="flex items-center gap-2">
+                <button
+                  id="solve-all-btn"
+                  class="px-4 py-2 bg-gradient-to-r from-pink-500 to-indigo-600 hover:from-pink-600 hover:to-indigo-700 text-white rounded-full text-xs font-semibold shadow-md shadow-pink-500/10 cursor-pointer flex items-center space-x-1.5 transition-all duration-200 hover:scale-[1.02]"
+                >
+                  <!-- Sparkles SVG Icon -->
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275Z"/><path d="m5 3 1 2.5L8.5 6 6 7 5 9.5 4 7 1.5 6 4 5.5Z"/><path d="m19 17 1 2.5 2.5.5-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1Z"/></svg>
+                  <span>Solve All Words</span>
+                </button>
+                <button
+                  id="reset-puzzle-btn"
+                  class="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 border border-slate-200 rounded-full cursor-pointer transition"
+                  title="Upload New Puzzle"
+                >
+                  <!-- Refresh SVG Icon -->
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Guidelines trace banners -->
+            <div class="bg-slate-50 rounded-2xl p-4 flex items-start space-x-2 text-xs text-slate-600 leading-relaxed border border-slate-100">
+              <span class="text-pink-500 shrink-0 mt-0.5">
+                <!-- Pointer Click SVG icon -->
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4.1 12 6"/><path d="m5.1 8-2.9-.8"/><path d="m6 12-1.9 2"/><path d="M7.2 2.2 8 5.1"/><path d="M9.037 9.69a.498.498 0 0 1 .653-.653l11 4.5a.5.5 0 0 1-.074.949l-4.349 1.041a1 1 0 0 0-.74.739l-1.04 4.35a.5.5 0 0 1-.95.074z"/></svg>
+              </span>
+              <div>
+                <span class="font-semibold text-slate-800">Dynamic Cell Tracing:</span> Click the <span class="font-semibold text-slate-900">Starting cell</span>, then click the <span class="font-semibold text-slate-900">Ending cell</span> of a word to highlights. Matches are checked off your board!
+              </div>
+            </div>
+
+            <!-- Intermediary character grid container containing nested letter DOMs and percentage mapping SVGs -->
+            <div class="relative w-full aspect-square sm:aspect-video rounded-2xl bg-neutral-900 border border-neutral-900 p-4 sm:p-6 overflow-hidden shadow-inner flex items-center justify-center">
+              <div
+                id="letter-grid"
+                class="grid h-full w-full gap-1 select-none relative z-10"
+              >
+                <!-- Filled dynamically via JS loop -->
+              </div>
+
+              <!-- Overlayer SVG showing glows path and line nodes -->
+              <svg id="drawing-svg" class="absolute inset-0 w-full h-full pointer-events-none z-20" viewBox="0 0 100 100" preserveAspectRatio="none">
+                <!-- Filled dynamically via SVG mapping loop -->
+              </svg>
+            </div>
+
+            <!-- Logging Terminal -->
+            <div class="py-2.5 px-4 bg-slate-900 text-slate-100 rounded-xl text-xs flex items-center justify-between font-mono">
+              <span class="text-slate-400">INFO ENGINE:</span>
+              <span id="info-logger-text" class="text-pink-300 font-semibold">Upload a word search image to begin.</span>
+            </div>
+          </div>
+
+          <!-- Mapped active image previews metadata card -->
+          <div id="source-preview-card" class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex items-center space-x-4">
+            <div class="w-16 h-16 rounded-xl bg-slate-50 overflow-hidden relative shrink-0 border border-slate-100">
+              <img id="preview-thumbnail-img" src="" class="object-cover w-full h-full" alt="OCR Source" />
+            </div>
+            <div>
+              <h4 class="text-sm font-semibold text-slate-900 mb-1 leading-none">OCR Image Source</h4>
+              <p class="text-xs text-slate-500 leading-relaxed font-sans">
+                This is the active file currently mapped to the grid coordinate matrix above. Keep files focused clearly for best spelling results.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sidebar block: containing target Word checklist checklists and instructions specs -->
+        <div class="lg:col-span-1 space-y-6">
+          <div id="word-bank-section" class="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-6">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div class="space-y-0.5">
+                <h3 class="text-lg font-bold text-slate-950 font-serif">Word Bank</h3>
+                <p class="text-xs text-slate-400 uppercase tracking-widest font-mono">Checklist</p>
+              </div>
+              <div class="bg-pink-100 text-pink-700 px-3 py-1 font-bold font-mono text-sm rounded-full flex items-center space-x-1 shadow-sm shadow-pink-500/5">
+                <!-- Check SVG icon -->
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                <span id="word-bank-counter-text">0/0</span>
+              </div>
+            </div>
+
+            <div id="word-bank-grid" class="grid grid-cols-2 gap-2 max-h-[360px] overflow-y-auto pr-1">
+              <!-- Tokens populated dynamically -->
+            </div>
+            
+            <p class="text-[11px] text-slate-400 capitalize text-center pt-2 leading-relaxed">
+              *Hover over any dictionary keyword to focus and blink its layout trace highlights coordinates.
+            </p>
+          </div>
+
+          <!-- Feature accents banner -->
+          <div class="rounded-3xl p-6 bg-gradient-to-br from-indigo-900 to-slate-950 text-white shadow-sm space-y-4 relative overflow-hidden">
+            <div class="absolute right-0 bottom-0 text-slate-800/10 font-bold font-hand text-8xl pointer-events-none select-none">
+              A.I.
+            </div>
+            <div class="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-pink-300">
+              <!-- Lightbulb SVG icon -->
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>
+            </div>
+            <div class="space-y-1.5 font-sans">
+              <h4 class="font-semibold text-slate-100 font-serif text-lg leading-tight">Supported Directions</h4>
+              <p class="text-xs text-slate-300 leading-relaxed">
+                WordSolve AI parses horizontal, vertical, and diagonal paths in both standard or reverse directions!
+              </p>
+            </div>
+            <div class="h-px bg-white/10"></div>
+            <div class="space-y-2">
+              <div class="flex items-center space-x-2 text-xs text-slate-300">
+                <span class="text-pink-300">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                </span>
+                <span>Works on camera uploads</span>
+              </div>
+              <div class="flex items-center space-x-2 text-xs text-slate-300">
+                <span class="text-pink-300">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                </span>
+                <span>Resolves custom stylized fonts</span>
+              </div>
+              <div class="flex items-center space-x-2 text-xs text-slate-300">
+                <span class="text-pink-300">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                </span>
+                <span>Auto-alignment of row offsets</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- App Premium Footers -->
+    <footer class="w-full bg-white border-t border-slate-200 mt-12 py-8">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-left">
+        <div class="space-y-1">
+          <div class="text-sm font-bold text-slate-800 font-serif">WordSolve AI</div>
+          <p class="text-xs text-slate-500 leading-relaxed font-sans">
+            Premium OCR detection powered by Tesseract.js. Runs completely in your browser.
+          </p>
+        </div>
+        <div class="flex flex-wrap justify-center gap-4 text-xs font-semibold text-slate-500">
+          <a href="/privacy.html" target="_blank" class="hover:text-slate-800 underline transition">
+            Privacy Policy
+          </a>
+          <span class="text-slate-300">•</span>
+          <span class="text-slate-400">© 2026 WordSolve AI. All rights reserved.</span>
+        </div>
+      </div>
+    </footer>
+
+    <!-- Interactive script runtime containing game rules, proxy solver fetch controllers, coordinates calculators -->
+    <script>
+      // Single Application State Engine (Pure Vanilla layout)
+      const state = {
+        image: null,
+        loading: false,
+        loadingTextIndex: 0,
+        error: null,
+        cropMode: false,
+        cropImage: null,
+        cropRect: null,
+        cropCanvasScale: 1,
+        reviewMode: false,
+        extractedGrid: null,
+        extractedWords: [],
+        grid: null,
+        words: [],
+        solutions: [],
+        foundWords: [],
+        hoveredWord: null,
+        selectedStartCell: null,
+        editingCellPos: null,
+        infoText: "Upload a word search image to begin."
+      };
+
+      const loadingTexts = [
+        "Loading OCR engine...",
+        "Reading selected grid...",
+        "Detecting rows and columns...",
+        "Extracting grid letters...",
+        "Preparing review..."
+      ];
+
+      // Engaged Demo Puzzles
+      const DemoPuzzle = {
+        grid: [
+          ["G","E","M","I","N","I","A","I","S","Y","S"],
+          ["O","C","R","S","O","L","V","E","R","W","E"],
+          ["O","P","U","Z","Z","L","E","G","C","O","A"],
+          ["G","E","S","W","O","R","D","R","H","R","R"],
+          ["L","X","I","M","A","G","E","I","Y","D","C"],
+          ["E","V","I","S","I","O","N","D","K","S","H"],
+          ["D","E","T","E","C","T","I","O","N","E","W"],
+          ["M","X","W","A","P","F","E","T","C","H","B"],
+          ["V","I","L","I","G","H","T","O","U","T","Z"],
+          ["N","E","T","L","I","F","Y","J","S","O","N"]
+        ],
+        words: ["GEMINI","OCR","SOLVER","PUZZLE","WORD","IMAGE","VISION","DETECTION","NETLIFY","JSON","GOOGLE","FETCH"],
+        solutions: [
+          { word: "GEMINI", startRow: 0, startCol: 0, endRow: 0, endCol: 5 },
+          { word: "OCR", startRow: 1, startCol: 0, endRow: 1, endCol: 2 },
+          { word: "SOLVER", startRow: 1, startCol: 3, endRow: 1, endCol: 8 },
+          { word: "PUZZLE", startRow: 2, startCol: 2, endRow: 2, endCol: 7 },
+          { word: "WORD", startRow: 3, startCol: 3, endRow: 3, endCol: 6 },
+          { word: "IMAGE", startRow: 4, startCol: 2, endRow: 4, endCol: 6 },
+          { word: "VISION", startRow: 5, startCol: 1, endRow: 5, endCol: 6 },
+          { word: "DETECTION", startRow: 6, startCol: 0, endRow: 6, endCol: 8 },
+          { word: "NETLIFY", startRow: 9, startCol: 0, endRow: 9, endCol: 6 },
+          { word: "JSON", startRow: 9, startCol: 7, endRow: 9, endCol: 10 },
+          { word: "GOOGLE", startRow: 0, startCol: 0, endRow: 5, endCol: 0 },
+          { word: "FETCH", startRow: 7, startCol: 5, endRow: 7, endCol: 9 }
+        ]
+      };
+
+      // Neon highlight palette mapping
+      const Palette = [
+        { stroke: "rgb(236, 72, 153)", fill: "rgba(236, 72, 153, 0.22)" },
+        { stroke: "rgb(16, 185, 129)", fill: "rgba(16, 185, 129, 0.22)" },
+        { stroke: "rgb(59, 130, 246)", fill: "rgba(59, 130, 246, 0.22)" },
+        { stroke: "rgb(245, 158, 11)", fill: "rgba(245, 158, 11, 0.22)" },
+        { stroke: "rgb(139, 92, 246)", fill: "rgba(139, 92, 246, 0.22)" },
+        { stroke: "rgb(20, 184, 166)", fill: "rgba(20, 184, 166, 0.22)" },
+        { stroke: "rgb(244, 63, 94)", fill: "rgba(244, 63, 94, 0.22)" },
+        { stroke: "rgb(6, 182, 212)", fill: "rgba(6, 182, 212, 0.22)" }
+      ];
+
+      let loadingTextsInterval;
+
+      // Bulletproof client-side solving engine
+      function solveLayout(grid, words) {
+        const rows = grid.length;
+        if (rows === 0) return [];
+        const cols = grid[0].length;
+        const directions = [
+          { r: 0, c: 1 },   // Right
+          { r: 0, c: -1 },  // Left
+          { r: 1, c: 0 },   // Down
+          { r: -1, c: 0 },  // Up
+          { r: 1, c: 1 },   // Down-Right
+          { r: -1, c: -1 }, // Up-Left
+          { r: 1, c: -1 },  // Down-Left
+          { r: -1, c: 1 }   // Up-Right
+        ];
+        const solutions = [];
+
+        for (const rawWord of words) {
+          const word = rawWord.toUpperCase().trim();
+          if (!word || word.length < 2) continue;
+          let found = false;
+
+          for (let r = 0; r < rows && !found; r++) {
+            for (let c = 0; c < cols && !found; c++) {
+              for (const dir of directions) {
+                let match = true;
+                for (let i = 0; i < word.length; i++) {
+                  const nr = r + dir.r * i;
+                  const nc = c + dir.c * i;
+                  if (
+                    nr < 0 || nr >= rows ||
+                    nc < 0 || nc >= cols ||
+                    grid[nr][nc].toUpperCase() !== word[i]
+                  ) {
+                    match = false;
+                    break;
+                  }
+                }
+                if (match) {
+                  solutions.push({
+                    word: rawWord,
+                    startRow: r,
+                    startCol: c,
+                    endRow: r + dir.r * (word.length - 1),
+                    endCol: c + dir.c * (word.length - 1)
+                  });
+                  found = true;
+                  break;
+                }
+              }
+            }
+          }
+        }
+        return solutions;
+      }
+
+      function getPct(colOrRow, max) {
+        return ((colOrRow + 0.5) / max) * 100;
+      }
+
+      // Initialise App Event binds
+      document.addEventListener("DOMContentLoaded", () => {
+        const dropzone = document.getElementById("dropzone");
+        const fileInput = document.getElementById("file-input");
+        const loadDemoBtn = document.getElementById("load-demo-btn");
+        const solveAllBtn = document.getElementById("solve-all-btn");
+        const resetPuzzleBtn = document.getElementById("reset-puzzle-btn");
+        const dismissErrorBtn = document.getElementById("dismiss-error-btn");
+        const rescanBtn = document.getElementById("rescan-btn");
+        const cancelReviewBtn = document.getElementById("cancel-review-btn");
+        const solvePuzzleBtn = document.getElementById("solve-puzzle-btn");
+        const cancelCropBtn = document.getElementById("cancel-crop-btn");
+        const resetCropBtn = document.getElementById("reset-crop-btn");
+        const useGridBtn = document.getElementById("use-grid-btn");
+
+        // Click handlers
+        dropzone.addEventListener("click", () => fileInput.click());
+        fileInput.addEventListener("change", handleFileChange);
+        loadDemoBtn.addEventListener("click", loadDemo);
+        solveAllBtn.addEventListener("click", handleSolveAll);
+        resetPuzzleBtn.addEventListener("click", handleReset);
+        dismissErrorBtn.addEventListener("click", () => {
+          state.error = null;
+          render();
+        });
+        rescanBtn.addEventListener("click", handleRescan);
+        cancelReviewBtn.addEventListener("click", handleCancelReview);
+        solvePuzzleBtn.addEventListener("click", handleSolvePuzzle);
+        cancelCropBtn.addEventListener("click", handleCancelCrop);
+        resetCropBtn.addEventListener("click", resetCropSelection);
+        useGridBtn.addEventListener("click", handleUseSelectedGrid);
+        initCropPointerEvents();
+
+        // Drag events
+        dropzone.addEventListener("dragover", (e) => e.preventDefault());
+        dropzone.addEventListener("drop", handleDrop);
+
+        // Run baseline render cycle
+        render();
+      });
+
+      function handleFileChange(e) {
+        const file = e.target.files?.[0];
+        if (file) {
+          processImageFile(file);
+        }
+      }
+
+      function handleDrop(e) {
+        e.preventDefault();
+        const file = e.dataTransfer.files?.[0];
+        if (file) {
+          processImageFile(file);
+        }
+      }
+
+      function processImageFile(file) {
+        state.error = null;
+        state.grid = null;
+        state.words = [];
+        state.solutions = [];
+        state.foundWords = [];
+        state.selectedStartCell = null;
+        state.reviewMode = false;
+        state.cropMode = false;
+        state.extractedGrid = null;
+        state.extractedWords = [];
+        state.loading = false;
+        state.infoText = "Choose the letter-grid area...";
+
+        const reader = new FileReader();
+        reader.onload = async () => {
+          try {
+            state.image = reader.result;
+            const previewTh = document.getElementById("preview-thumbnail-img");
+            if (previewTh) previewTh.src = reader.result;
+            await openCropper(reader.result);
+          } catch (err) {
+            state.error = "Could not open the image. Please try another image file.";
+            console.error(err);
+          }
+          render();
+        };
+        reader.onerror = () => {
+          state.error = "Failed to load image file.";
+          render();
+        };
+        reader.readAsDataURL(file);
+      }
+
+      async function openCropper(base64String) {
+        const img = new Image();
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+          img.src = base64String;
+        });
+
+        state.cropImage = img;
+        state.cropRect = null;
+        state.cropMode = true;
+        state.reviewMode = false;
+        state.loading = false;
+        state.infoText = "Select only the letter grid.";
+        render();
+
+        requestAnimationFrame(() => drawCropCanvas());
+      }
+
+      function drawCropCanvas() {
+        const canvas = document.getElementById("crop-canvas");
+        const stage = document.getElementById("crop-stage");
+        const img = state.cropImage;
+        if (!canvas || !stage || !img) return;
+
+        const displayWidth = Math.max(320, Math.min(1024, stage.clientWidth || 1024));
+        const scale = displayWidth / img.naturalWidth;
+        const displayHeight = Math.max(1, Math.round(img.naturalHeight * scale));
+
+        canvas.width = Math.round(displayWidth);
+        canvas.height = displayHeight;
+        canvas.style.width = "100%";
+        canvas.style.height = "auto";
+        state.cropCanvasScale = scale;
+
+        const ctx = canvas.getContext("2d");
+        ctx.clearRect(0, 0, displayWidth, displayHeight);
+        ctx.drawImage(img, 0, 0, displayWidth, displayHeight);
+
+        const selection = document.getElementById("crop-selection");
+        if (!selection) return;
+
+        if (!state.cropRect) {
+          selection.classList.add("hidden");
+          return;
+        }
+
+        selection.classList.remove("hidden");
+        selection.style.left = `${state.cropRect.x}px`;
+        selection.style.top = `${state.cropRect.y}px`;
+        selection.style.width = `${state.cropRect.w}px`;
+        selection.style.height = `${state.cropRect.h}px`;
+      }
+
+      let cropPointer = null;
+      let cropResize = null;
+      let canvasPointerId = null;
+
+      function getCropCanvasPoint(event) {
+        const canvas = document.getElementById("crop-canvas");
+        if (!canvas) return { x: 0, y: 0 };
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        return {
+          x: Math.max(0, Math.min(canvas.width, (event.clientX - rect.left) * scaleX)),
+          y: Math.max(0, Math.min(canvas.height, (event.clientY - rect.top) * scaleY))
+        };
+      }
+
+      function autoScrollWhileCropping(event) {
+        const edge = 70;
+        const speed = 18;
+        let dx = 0, dy = 0;
+        if (event.clientX < edge) dx = -speed;
+        else if (event.clientX > window.innerWidth - edge) dx = speed;
+        if (event.clientY < edge) dy = -speed;
+        else if (event.clientY > window.innerHeight - edge) dy = speed;
+        if (dx || dy) window.scrollBy({ left: dx, top: dy, behavior: "auto" });
+      }
+
+      function beginCropDrag(event, type, handle = null) {
+        if (!state.cropMode) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const point = getCropCanvasPoint(event);
+        canvasPointerId = event.pointerId;
+        if (type === "resize" && state.cropRect) {
+          cropResize = { handle, startRect: { ...state.cropRect } };
+        } else {
+          cropPointer = { startX: point.x, startY: point.y };
+          state.cropRect = { x: point.x, y: point.y, w: 0, h: 0 };
+        }
+        const canvas = document.getElementById("crop-canvas");
+        canvas?.setPointerCapture?.(event.pointerId);
+        drawCropCanvas();
+      }
+
+      function updateCropDrag(event) {
+        if (!state.cropMode || (!cropPointer && !cropResize)) return;
+        autoScrollWhileCropping(event);
+        const point = getCropCanvasPoint(event);
+
+        if (cropPointer) {
+          const left = Math.min(cropPointer.startX, point.x);
+          const top = Math.min(cropPointer.startY, point.y);
+          const right = Math.max(cropPointer.startX, point.x);
+          const bottom = Math.max(cropPointer.startY, point.y);
+          state.cropRect = { x: left, y: top, w: right - left, h: bottom - top };
+        } else if (cropResize && state.cropRect) {
+          const r = cropResize.startRect;
+          const handle = cropResize.handle;
+          let left = r.x, right = r.x + r.w, top = r.y, bottom = r.y + r.h;
+          if (handle.includes("w")) left = point.x;
+          if (handle.includes("e")) right = point.x;
+          if (handle.includes("n")) top = point.y;
+          if (handle.includes("s")) bottom = point.y;
+
+          const maxW = document.getElementById("crop-canvas")?.width || 0;
+          const maxH = document.getElementById("crop-canvas")?.height || 0;
+          left = Math.max(0, Math.min(left, maxW));
+          right = Math.max(0, Math.min(right, maxW));
+          top = Math.max(0, Math.min(top, maxH));
+          bottom = Math.max(0, Math.min(bottom, maxH));
+
+          const minSize = 20;
+          if (right - left < minSize) {
+            if (handle.includes("w")) left = Math.max(0, right - minSize);
+            else right = Math.min(maxW, left + minSize);
+          }
+          if (bottom - top < minSize) {
+            if (handle.includes("n")) top = Math.max(0, bottom - minSize);
+            else bottom = Math.min(maxH, top + minSize);
+          }
+          state.cropRect = { x: Math.min(left, right), y: Math.min(top, bottom), w: Math.abs(right-left), h: Math.abs(bottom-top) };
+        }
+        drawCropCanvas();
+      }
+
+      function finishCropDrag(event) {
+        if (event?.pointerId != null && canvasPointerId != null && event.pointerId !== canvasPointerId) return;
+        cropPointer = null;
+        cropResize = null;
+        canvasPointerId = null;
+      }
+
+      function initCropPointerEvents() {
+        const canvas = document.getElementById("crop-canvas");
+        const selection = document.getElementById("crop-selection");
+        if (!canvas || canvas.dataset.bound === "1") return;
+        canvas.dataset.bound = "1";
+        canvas.style.touchAction = "none";
+
+        canvas.addEventListener("pointerdown", event => {
+          if (!state.cropMode) return;
+          beginCropDrag(event, "draw");
+        });
+        canvas.addEventListener("pointermove", updateCropDrag);
+        canvas.addEventListener("pointerup", finishCropDrag);
+        canvas.addEventListener("pointercancel", finishCropDrag);
+        canvas.addEventListener("lostpointercapture", finishCropDrag);
+
+        selection?.querySelectorAll("[data-crop-handle]").forEach(handle => {
+          handle.addEventListener("pointerdown", event => {
+            beginCropDrag(event, "resize", handle.dataset.cropHandle);
+          });
+        });
+      }
+
+      function resetCropSelection() {
+        state.cropRect = null;
+        drawCropCanvas();
+      }
+
+      function getCropDataUrl() {
+        if (!state.cropImage || !state.cropRect || state.cropRect.w < 20 || state.cropRect.h < 20) return null;
+        const rect = state.cropRect;
+        const scale = state.cropImage.naturalWidth / document.getElementById("crop-canvas").width;
+        const sx = Math.max(0, Math.round(rect.x * scale));
+        const sy = Math.max(0, Math.round(rect.y * scale));
+        const sw = Math.min(state.cropImage.naturalWidth - sx, Math.round(rect.w * scale));
+        const sh = Math.min(state.cropImage.naturalHeight - sy, Math.round(rect.h * scale));
+        if (sw < 20 || sh < 20) return null;
+
+        const canvas = document.createElement("canvas");
+        canvas.width = sw;
+        canvas.height = sh;
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(state.cropImage, sx, sy, sw, sh, 0, 0, sw, sh);
+        return canvas.toDataURL("image/png");
+      }
+
+      async function handleUseSelectedGrid() {
+        const cropData = getCropDataUrl();
+        if (!cropData) {
+          state.error = "Please draw a crop around the complete letter grid first.";
+          render();
+          return;
+        }
+
+        state.cropMode = false;
+        state.loading = true;
+        state.error = null;
+        state.infoText = "Reading the selected grid...";
+        render();
+
+        try {
+          await extractGridFromCrop(cropData);
+        } catch (err) {
+          state.error = err.message || "Could not read the selected grid.";
+          console.error("Grid OCR error:", err);
+        } finally {
+          state.loading = false;
+          render();
+        }
+      }
+
+      async function extractGridFromCrop(cropDataUrl) {
+        state.infoText = "Preparing the cropped grid for OCR...";
+        render();
+
+        const source = await loadImageElement(cropDataUrl);
+        const variants = createOCRVariants(source);
+        const candidates = [];
+
+        // Pass 1: use whole-grid OCR only to recover the grid geometry.
+        for (let i = 0; i < variants.length; i++) {
+          state.infoText = `Detecting grid layout... pass ${i + 1} of ${variants.length}`;
+          render();
+
+          const { data } = await Tesseract.recognize(variants[i], "eng", {
+            logger: message => {
+              if (message.status === "recognizing text" && typeof message.progress === "number") {
+                state.infoText = `Detecting grid layout... ${Math.round(message.progress * 100)}%`;
+                render();
+              }
+            },
+            config: {
+              tessedit_pageseg_mode: "6",
+              tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+              preserve_interword_spaces: "0",
+              user_defined_dpi: "350"
+            }
+          });
+
+          const symbols = extractUsableSymbols(data).filter(s => s.confidence >= 18);
+          if (symbols.length < 9) continue;
+
+          const geometry = detectGridGeometry(symbols);
+          if (!geometry || geometry.rows.length < 3 || geometry.columnCenters.length < 3) continue;
+
+          const grid = reconstructGridFromGeometry(symbols, geometry);
+          if (!grid || grid.length < 3 || grid[0].length < 3) continue;
+
+          candidates.push({
+            grid,
+            symbols,
+            geometry,
+            variant: variants[i],
+            index: i,
+            score: scoreGridCandidate(grid, symbols) + geometry.score
+          });
+        }
+
+        if (!candidates.length) {
+          throw new Error("Could not reliably detect the letter grid. Try selecting the complete grid with a small margin around the letters.");
+        }
+
+        candidates.sort((a, b) => b.score - a.score);
+        const best = candidates[0];
+
+        // Pass 2: refine the OCR by reading each detected cell individually.
+        // This is slower than whole-grid OCR, but substantially reduces letter mixing.
+        state.infoText = `Refining ${best.geometry.rows.length} × ${best.geometry.columnCenters.length} letters...`;
+        render();
+
+        const refinedGrid = await refineGridByCellOCR(best.variant, best.geometry, best.grid);
+
+        state.extractedGrid = refinedGrid;
+        state.extractedWords = [];
+        state.reviewMode = true;
+        state.infoText = `Grid detected: ${refinedGrid.length} × ${refinedGrid[0].length}. Review the letters, then enter the words you want to find.`;
+      }
+
+      function detectGridGeometry(symbols) {
+        const centers = symbols.map(s => ({
+          ...s,
+          cx: (s.bbox.x0 + s.bbox.x1) / 2,
+          cy: (s.bbox.y0 + s.bbox.y1) / 2,
+          h: Math.max(1, s.bbox.y1 - s.bbox.y0),
+          w: Math.max(1, s.bbox.x1 - s.bbox.x0)
+        }));
+
+        if (centers.length < 9) return null;
+
+        const medianHeight = Math.max(4, median(centers.map(s => s.h)));
+        const rowTolerance = Math.max(3.5, medianHeight * 0.72);
+        let rows = clusterByCoordinate(centers, s => s.cy, rowTolerance)
+          .filter(r => r.items.length >= 3)
+          .sort((a, b) => a.mean - b.mean);
+
+        if (rows.length < 3) return null;
+
+        // Reject obvious non-grid rows: word-like horizontal OCR fragments are usually
+        // much longer than a normal grid row or have very different density.
+        const rowCounts = rows.map(r => r.items.length);
+        const typicalCount = Math.max(3, Math.round(median(rowCounts)));
+        const allowedLow = Math.max(3, typicalCount - 3);
+        const allowedHigh = typicalCount + 3;
+        const consistentRows = rows.filter(r => r.items.length >= allowedLow && r.items.length <= allowedHigh);
+        if (consistentRows.length >= 3) rows = consistentRows;
+
+        // Estimate the horizontal pitch from the densest row.
+        const templateRow = [...rows].sort((a, b) => {
+          if (b.items.length !== a.items.length) return b.items.length - a.items.length;
+          const ac = a.items.reduce((sum, x) => sum + x.confidence, 0) / a.items.length;
+          const bc = b.items.reduce((sum, x) => sum + x.confidence, 0) / b.items.length;
+          return bc - ac;
+        })[0];
+
+        const templateItems = templateRow.items.slice().sort((a, b) => a.cx - b.cx);
+        const xGaps = templateItems.slice(1).map((x, i) => x.cx - templateItems[i].cx).filter(g => g > 2);
+        const pitch = median(xGaps);
+
+        let columnCenters;
+        if (templateItems.length >= 3 && Number.isFinite(pitch) && pitch > 0) {
+          // Fit a regular lattice to the densest OCR row. This is much more stable
+          // than letting each row invent its own columns.
+          const first = templateItems[0].cx;
+          const last = templateItems[templateItems.length - 1].cx;
+          const estimatedCols = Math.max(3, Math.round((last - first) / pitch) + 1);
+          const centers = Array.from({ length: estimatedCols }, (_, i) => first + i * pitch);
+
+          // Re-estimate each lattice position from nearby high-confidence symbols.
+          const xTolerance = Math.max(medianHeight * 0.95, pitch * 0.32, 5);
+          columnCenters = centers.map(cx => {
+            const nearby = centersFromSymbols(centers, cx, xTolerance, rows);
+            return nearby.length
+              ? nearby.reduce((sum, item) => sum + item.cx, 0) / nearby.length
+              : cx;
+          });
+        } else {
+          columnCenters = clusterByCoordinate(rows.flatMap(r => r.items), s => s.cx, Math.max(4, medianHeight * 0.75))
+            .map(c => c.mean);
+        }
+
+        // Remove columns that are too close to their neighbours.
+        columnCenters = columnCenters.filter((x, i) => i === 0 || Math.abs(x - columnCenters[i - 1]) > Math.max(3, medianHeight * 0.45));
+
+        const rowSpacings = rows.slice(1).map((r, i) => r.mean - rows[i].mean).filter(g => g > 2);
+        const rowPitch = median(rowSpacings) || medianHeight * 1.8;
+        const rowRegularity = rowSpacings.length
+          ? Math.max(0, 1 - Math.min(1, (Math.max(...rowSpacings) - Math.min(...rowSpacings)) / rowPitch))
+          : 0;
+        const colRegularity = columnCenters.length > 2
+          ? (() => {
+              const gaps = columnCenters.slice(1).map((x, i) => x - columnCenters[i]);
+              const med = median(gaps) || 1;
+              return Math.max(0, 1 - Math.min(1, (Math.max(...gaps) - Math.min(...gaps)) / med));
+            })()
+          : 0;
+
+        return {
+          rows,
+          columnCenters,
+          medianHeight,
+          rowPitch,
+          score: (rowRegularity + colRegularity) * 12
+        };
+      }
+
+      function centersFromSymbols(_centers, cx, tolerance, rows) {
+        return rows.flatMap(r => r.items).filter(item => Math.abs(item.cx - cx) <= tolerance && item.confidence >= 20);
+      }
+
+      function reconstructGridFromGeometry(symbols, geometry) {
+        const { rows, columnCenters, medianHeight } = geometry;
+        const grid = [];
+        const maxAssignDistance = Math.max(medianHeight * 1.35, 8);
+
+        for (const rowCluster of rows) {
+          const row = Array(columnCenters.length).fill("");
+          const used = new Set();
+
+          for (let c = 0; c < columnCenters.length; c++) {
+            const targetX = columnCenters[c];
+            let best = null;
+            let bestDistance = Infinity;
+
+            for (const item of rowCluster.items) {
+              if (used.has(item)) continue;
+              const distance = Math.abs(item.cx - targetX);
+              if (distance < bestDistance && distance <= maxAssignDistance) {
+                best = item;
+                bestDistance = distance;
+              }
+            }
+
+            if (best) {
+              row[c] = best.text;
+              used.add(best);
+            }
+          }
+
+          grid.push(row);
+        }
+
+        return grid.filter(row => row.some(Boolean));
+      }
+
+      async function refineGridByCellOCR(variantDataUrl, geometry, initialGrid) {
+        const img = await loadImageElement(variantDataUrl);
+        const variantWidth = img.naturalWidth;
+        const variantHeight = img.naturalHeight;
+        const rowCenters = geometry.rows.map(r => r.mean);
+        const colCenters = geometry.columnCenters;
+        const rowPitch = geometry.rowPitch || geometry.medianHeight * 1.8;
+        const colGaps = colCenters.slice(1).map((x, i) => x - colCenters[i]);
+        const colPitch = median(colGaps) || geometry.medianHeight * 1.8;
+
+        // One reusable worker avoids creating hundreds of OCR workers.
+        const worker = await Tesseract.createWorker("eng", 1, {
+          logger: message => {
+            if (message.status === "recognizing text" && typeof message.progress === "number") {
+              state.infoText = `Refining letters... ${Math.round(message.progress * 100)}%`;
+              render();
+            }
+          }
+        });
+
+        try {
+          await worker.setParameters({
+            tessedit_pageseg_mode: "10", // SINGLE_CHAR
+            tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+            user_defined_dpi: "350"
+          });
+
+          const result = initialGrid.map(row => row.slice());
+          const total = rowCenters.length * colCenters.length;
+          let processed = 0;
+
+          for (let r = 0; r < rowCenters.length; r++) {
+            for (let c = 0; c < colCenters.length; c++) {
+              const cx = colCenters[c];
+              const cy = rowCenters[r];
+
+              // Tight cell crop with a small margin. The margin keeps the glyph intact
+              // without letting neighbouring letters leak into the OCR input.
+              const halfW = Math.max(8, colPitch * 0.42);
+              const halfH = Math.max(8, rowPitch * 0.42);
+              const x0 = Math.max(0, Math.round(cx - halfW));
+              const y0 = Math.max(0, Math.round(cy - halfH));
+              const x1 = Math.min(variantWidth, Math.round(cx + halfW));
+              const y1 = Math.min(variantHeight, Math.round(cy + halfH));
+
+              if (x1 <= x0 || y1 <= y0) {
+                processed++;
+                continue;
+              }
+
+              const cellCanvas = document.createElement("canvas");
+              const cellW = x1 - x0;
+              const cellH = y1 - y0;
+              cellCanvas.width = Math.max(48, cellW * 4);
+              cellCanvas.height = Math.max(48, cellH * 4);
+              const cctx = cellCanvas.getContext("2d", { willReadFrequently: true });
+              cctx.imageSmoothingEnabled = true;
+              cctx.imageSmoothingQuality = "high";
+              cctx.fillStyle = "white";
+              cctx.fillRect(0, 0, cellCanvas.width, cellCanvas.height);
+              cctx.drawImage(img, x0, y0, cellW, cellH, 0, 0, cellCanvas.width, cellCanvas.height);
+
+              const cellData = cellCanvas.toDataURL("image/png");
+              const first = await worker.recognize(cellData);
+              let symbol = extractBestSingleLetter(first.data);
+
+              // If confidence is weak, run one local threshold pass on the SAME cell.
+              // This catches light/anti-aliased screenshot glyphs without doing a
+              // second OCR call for every clean cell.
+              if (!symbol || symbol.confidence < 55) {
+                const thresholdCanvas = document.createElement("canvas");
+                thresholdCanvas.width = cellCanvas.width;
+                thresholdCanvas.height = cellCanvas.height;
+                const tctx = thresholdCanvas.getContext("2d", { willReadFrequently: true });
+                tctx.drawImage(cellCanvas, 0, 0);
+                const image = tctx.getImageData(0, 0, thresholdCanvas.width, thresholdCanvas.height);
+                const pixels = image.data;
+                for (let p = 0; p < pixels.length; p += 4) {
+                  const gray = 0.299 * pixels[p] + 0.587 * pixels[p + 1] + 0.114 * pixels[p + 2];
+                  const value = gray < 170 ? 0 : 255;
+                  pixels[p] = value;
+                  pixels[p + 1] = value;
+                  pixels[p + 2] = value;
+                  pixels[p + 3] = 255;
+                }
+                tctx.putImageData(image, 0, 0);
+
+                const second = await worker.recognize(thresholdCanvas.toDataURL("image/png"));
+                const alternative = extractBestSingleLetter(second.data);
+                if (alternative && (!symbol || alternative.confidence > symbol.confidence)) {
+                  symbol = alternative;
+                }
+              }
+
+              if (symbol && symbol.confidence >= 30) {
+                result[r][c] = symbol.text;
+              } else if (!result[r][c]) {
+                result[r][c] = "";
+              }
+
+              processed++;
+              if (processed % 12 === 0 || processed === total) {
+                state.infoText = `Refining letters... ${processed}/${total}`;
+                render();
+              }
+            }
+          }
+
+          return result;
+        } finally {
+          await worker.terminate();
+        }
+      }
+
+      function extractBestSingleLetter(data) {
+        const symbols = Array.isArray(data?.symbols) ? data.symbols : [];
+        const candidates = symbols
+          .map(s => ({
+            text: normalizeOCRLetter(s.text),
+            confidence: Number(s.confidence ?? 0),
+            bbox: s.bbox || null
+          }))
+          .filter(s => s.text && s.text.length === 1 && s.confidence >= 20 && s.bbox);
+
+        if (!candidates.length) return null;
+        candidates.sort((a, b) => b.confidence - a.confidence);
+        return candidates[0];
+      }
+
+      async function loadImageElement(dataUrl) {
+        const img = new Image();
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+          img.src = dataUrl;
+        });
+        return img;
+      }
+
+      function createOCRVariants(img) {
+        // Upscaling is especially helpful for small screenshot letters.
+        const scale = Math.max(2, Math.min(3.5, 1800 / Math.max(img.naturalWidth, img.naturalHeight)));
+        const width = Math.max(300, Math.round(img.naturalWidth * scale));
+        const height = Math.max(300, Math.round(img.naturalHeight * scale));
+
+        const base = document.createElement("canvas");
+        base.width = width;
+        base.height = height;
+        const bctx = base.getContext("2d", { willReadFrequently: true });
+        bctx.imageSmoothingEnabled = true;
+        bctx.imageSmoothingQuality = "high";
+        bctx.drawImage(img, 0, 0, width, height);
+
+        const sourceData = bctx.getImageData(0, 0, width, height);
+        const gray = new Uint8ClampedArray(width * height);
+
+        // Luminance + mild contrast stretch.
+        for (let p = 0, i = 0; p < sourceData.data.length; p += 4, i++) {
+          const r = sourceData.data[p];
+          const g = sourceData.data[p + 1];
+          const b = sourceData.data[p + 2];
+          const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+          gray[i] = Math.max(0, Math.min(255, Math.round((lum - 18) * 1.18)));
+        }
+
+        const makeVariant = (mode) => {
+          const c = document.createElement("canvas");
+          c.width = width;
+          c.height = height;
+          const ctx = c.getContext("2d", { willReadFrequently: true });
+          const out = ctx.createImageData(width, height);
+
+          for (let i = 0, j = 0; i < gray.length; i++, j += 4) {
+            let v = gray[i];
+            if (mode === "threshold") {
+              v = v < 160 ? 0 : 255;
+            } else if (mode === "soft") {
+              v = v < 135 ? 25 : 235;
+            }
+            out.data[j] = v;
+            out.data[j + 1] = v;
+            out.data[j + 2] = v;
+            out.data[j + 3] = 255;
+          }
+
+          ctx.putImageData(out, 0, 0);
+          return c.toDataURL("image/png");
+        };
+
+        return [
+          base.toDataURL("image/png"),
+          makeVariant("soft"),
+          makeVariant("threshold")
+        ];
+      }
+
+      function extractUsableSymbols(data) {
+        const symbols = Array.isArray(data?.symbols) ? data.symbols : [];
+        return symbols.map(s => {
+          const raw = String(s.text || "").toUpperCase().trim();
+          const normalized = normalizeOCRLetter(raw);
+          return {
+            text: normalized,
+            rawText: raw,
+            confidence: Number(s.confidence ?? 0),
+            bbox: s.bbox || null
+          };
+        }).filter(s => s.text.length === 1 && s.bbox && Number.isFinite(s.bbox.x0) && Number.isFinite(s.bbox.y0));
+      }
+
+      function normalizeOCRLetter(value) {
+        const cleaned = String(value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+        if (!cleaned) return "";
+        if (/^[A-Z]$/.test(cleaned)) return cleaned;
+
+        // Common OCR confusions. Only one character is accepted.
+        const substitutions = { "0": "O", "1": "I", "5": "S", "8": "B", "2": "Z" };
+        return substitutions[cleaned] || "";
+      }
+
+      function scoreGridCandidate(grid, symbols) {
+        const rows = grid.length;
+        const cols = Math.max(...grid.map(r => r.length));
+        const filled = grid.flat().filter(Boolean).length;
+        const total = rows * cols;
+        const fillRatio = total ? filled / total : 0;
+        const rowLengths = grid.map(r => r.filter(Boolean).length);
+        const medianRow = median(rowLengths);
+        const rowConsistency = medianRow ? 1 - Math.min(1, Math.abs(Math.max(...rowLengths) - Math.min(...rowLengths)) / medianRow) : 0;
+        const avgConfidence = symbols.length ? symbols.reduce((sum, s) => sum + Math.max(0, Math.min(100, s.confidence)), 0) / symbols.length : 0;
+        const sizeBonus = Math.min(1, (rows * cols) / 100);
+
+        return fillRatio * 45 + rowConsistency * 25 + (avgConfidence / 100) * 25 + sizeBonus * 5;
+      }
+
+      // Small local median helper used by the OCR grid reconstruction.
+      function median(values) {
+        const nums = values.map(Number).filter(Number.isFinite).sort((a, b) => a - b);
+        if (!nums.length) return 0;
+        const middle = Math.floor(nums.length / 2);
+        return nums.length % 2 ? nums[middle] : (nums[middle - 1] + nums[middle]) / 2;
+      }
+
+      function clusterByCoordinate(items, coordinateFn, tolerance) {
+        if (!Array.isArray(items) || !items.length) return [];
+
+        const sorted = items
+          .map(item => ({ item, value: Number(coordinateFn(item)) }))
+          .filter(entry => Number.isFinite(entry.value))
+          .sort((a, b) => a.value - b.value);
+
+        const clusters = [];
+        for (const entry of sorted) {
+          const last = clusters[clusters.length - 1];
+          if (!last || Math.abs(entry.value - last.mean) > tolerance) {
+            clusters.push({ items: [entry.item], mean: entry.value });
+          } else {
+            last.items.push(entry.item);
+            last.mean = last.items.reduce((sum, item) => sum + Number(coordinateFn(item)), 0) / last.items.length;
+          }
+        }
+        return clusters;
+      }
+
+      function reconstructGridFromSymbols(symbols) {
+        const centers = symbols.map(s => ({
+          ...s,
+          cx: (s.bbox.x0 + s.bbox.x1) / 2,
+          cy: (s.bbox.y0 + s.bbox.y1) / 2,
+          h: Math.max(1, s.bbox.y1 - s.bbox.y0),
+          w: Math.max(1, s.bbox.x1 - s.bbox.x0)
+        }));
+
+        const medianHeight = Math.max(4, median(centers.map(s => s.h)));
+        const rowTolerance = Math.max(4, medianHeight * 0.75);
+        const rows = clusterByCoordinate(centers, s => s.cy, rowTolerance)
+          .filter(r => r.items.length >= 3)
+          .sort((a, b) => a.mean - b.mean);
+
+        if (rows.length < 3) return null;
+
+        // Use the densest, most consistent rows instead of discarding rows with a few OCR misses.
+        const rowCounts = rows.map(r => r.items.length);
+        const targetCols = Math.max(3, Math.round(median(rowCounts)));
+        const bestRows = rows.filter(r => r.items.length >= Math.max(3, targetCols - 2));
+        if (bestRows.length < 3) return null;
+
+        // Choose a high-confidence row with the most detected letters as the horizontal template.
+        const template = [...bestRows].sort((a, b) => {
+          const ac = a.items.reduce((s, x) => s + x.confidence, 0) / a.items.length;
+          const bc = b.items.reduce((s, x) => s + x.confidence, 0) / b.items.length;
+          return (b.items.length - a.items.length) || (bc - ac);
+        })[0];
+
+        let columnCenters = template.items
+          .slice()
+          .sort((a, b) => a.cx - b.cx)
+          .map(s => s.cx);
+
+        // If the best row contains too many OCR fragments, cluster its X positions.
+        if (columnCenters.length !== targetCols) {
+          const xs = bestRows.flatMap(r => r.items.map(s => s.cx)).sort((a, b) => a - b);
+          const gaps = xs.slice(1).map((x, i) => x - xs[i]).filter(g => g > 2);
+          const gap = median(gaps) || medianHeight * 2;
+          const xTolerance = Math.max(4, gap * 0.3, medianHeight * 0.55);
+          columnCenters = clusterByCoordinate(bestRows.flatMap(r => r.items), s => s.cx, xTolerance)
+            .map(c => c.mean);
+        }
+
+        // If clustering still produced extra/missing columns, fall back to the template row.
+        if (columnCenters.length !== targetCols) {
+          columnCenters = template.items.slice().sort((a, b) => a.cx - b.cx).map(s => s.cx);
+        }
+
+        if (columnCenters.length < 3) return null;
+        if (columnCenters.length > targetCols + 1) columnCenters = columnCenters.slice(0, targetCols);
+
+        const grid = [];
+        const maxAssignDistance = Math.max(medianHeight * 2.0, 12);
+
+        for (const rowCluster of bestRows) {
+          const row = Array(columnCenters.length).fill("");
+          const used = new Set();
+          const sortedItems = rowCluster.items.slice().sort((a, b) => a.cx - b.cx);
+
+          for (let c = 0; c < columnCenters.length; c++) {
+            const x = columnCenters[c];
+            let best = null;
+            let bestDistance = Infinity;
+
+            for (const item of sortedItems) {
+              if (used.has(item)) continue;
+              const distance = Math.abs(item.cx - x);
+              if (distance < bestDistance && distance <= maxAssignDistance) {
+                best = item;
+                bestDistance = distance;
+              }
+            }
+
+            if (best) {
+              row[c] = best.text;
+              used.add(best);
+            }
+          }
+
+          grid.push(row);
+        }
+
+        // Remove only rows that contain no detected letters.
+        const cleanRows = grid.filter(row => row.some(Boolean));
+        if (cleanRows.length < 3) return null;
+
+        return cleanRows;
+      }
+
+      function loadDemo() {
+        state.error = null;
+        state.image = "demo";
+        state.loading = true;
+        state.grid = null;
+        state.reviewMode = false;
+        render();
+
+        setTimeout(() => {
+          state.grid = DemoPuzzle.grid;
+          state.words = DemoPuzzle.words;
+          state.solutions = DemoPuzzle.solutions;
+          state.foundWords = [];
+          state.selectedStartCell = null;
+          state.loading = false;
+          state.infoText = "Demo puzzle loaded! Trace rows or click words to solve.";
+          render();
+        }, 1200);
+      }
+
+      // Review screen handlers
+      function handleRescan() {
+        if (state.image && state.image !== "demo") {
+          openCropper(state.image);
+        }
+      }
+
+      function handleCancelCrop() {
+        state.cropMode = false;
+        state.cropImage = null;
+        state.cropRect = null;
+        state.image = null;
+        state.error = null;
+        render();
+      }
+
+      function handleCancelReview() {
+        state.reviewMode = false;
+        state.extractedGrid = null;
+        state.extractedWords = [];
+        state.error = null;
+        state.image = null;
+        render();
+      }
+
+      function normalizeTargetWords(text) {
+        return String(text || "")
+          .split(/\n|,|;/)
+          .map(line => line.trim())
+          .filter(Boolean)
+          .map(line => line.toUpperCase().replace(/[^A-Z]/g, ""))
+          .filter(word => word.length >= 2 && word.length <= 60)
+          .filter((word, index, arr) => arr.indexOf(word) === index);
+      }
+
+      function handleSolvePuzzle() {
+        if (!state.extractedGrid || state.extractedGrid.length === 0) {
+          state.error = "Grid is empty.";
+          render();
+          return;
+        }
+
+        for (let r = 0; r < state.extractedGrid.length; r++) {
+          for (let c = 0; c < state.extractedGrid[r].length; c++) {
+            const cell = state.extractedGrid[r][c];
+            if (!cell || !/^[A-Z]$/.test(cell)) {
+              state.error = "Please fill in all grid cells before solving. The highlighted cells still need a letter.";
+              render();
+              return;
+            }
+          }
+        }
+
+        const wordsInput = document.getElementById("review-words-input");
+        state.extractedWords = normalizeTargetWords(wordsInput?.value || "");
+
+        if (!state.extractedWords.length) {
+          state.error = "Please enter at least one word to find.";
+          render();
+          return;
+        }
+
+        state.grid = state.extractedGrid.map(row => [...row]);
+        state.words = state.extractedWords;
+        state.solutions = solveLayout(state.grid, state.words);
+        state.reviewMode = false;
+        state.foundWords = [];
+        state.selectedStartCell = null;
+        state.error = null;
+        state.infoText = "Puzzle loaded! Trace rows or click Solve All.";
+        render();
+      }
+
+      function handleCellClick(row, col) {
+        if (!state.grid || !state.solutions) return;
+
+        if (!state.selectedStartCell) {
+          state.selectedStartCell = { row, col };
+          state.infoText = `Selected start letter: ${state.grid[row][col]}. Next, click the ending cell!`;
+        } else {
+          const startR = state.selectedStartCell.row;
+          const startC = state.selectedStartCell.col;
+          const endR = row;
+          const endC = col;
+
+          if (startR === endR && startC === endC) {
+            state.selectedStartCell = null;
+            state.infoText = "Cell selection cancelled.";
+            render();
+            return;
+          }
+
+          const matchedSol = state.solutions.find(
+            (sol) =>
+              (sol.startRow === startR && sol.startCol === startC && sol.endRow === endR && sol.endCol === endC) ||
+              (sol.startRow === endR && sol.startCol === endC && sol.endRow === startR && sol.endCol === startC)
+          );
+
+          if (matchedSol) {
+            if (state.foundWords.includes(matchedSol.word)) {
+              state.infoText = `Matched word "${matchedSol.word}" is already found!`;
+            } else {
+              state.foundWords.push(matchedSol.word);
+              state.infoText = `Superb tracing! Found: "${matchedSol.word}" 🎉`;
+            }
+          } else {
+            state.infoText = "No valid hidden dictionary term matches that vector path.";
+          }
+          state.selectedStartCell = null;
+        }
+        render();
+      }
+
+      function handleSolveAll() {
+        if (!state.solutions) return;
+        state.foundWords = state.solutions.map((sol) => sol.word);
+        state.infoText = "AI solved! Every puzzle coordinate highlighter matches has been unlocked!";
+        render();
+      }
+
+      function handleReset() {
+        state.image = null;
+        state.grid = null;
+        state.words = [];
+        state.solutions = [];
+        state.foundWords = [];
+        state.selectedStartCell = null;
+        state.cropMode = false;
+        state.cropImage = null;
+        state.cropRect = null;
+        state.reviewMode = false;
+        state.extractedGrid = null;
+        state.extractedWords = [];
+        state.error = null;
+        state.infoText = "Upload a word search image to begin.";
+        render();
+      }
+
+      // Main UI Rendering Engine Binds
+      function render() {
+        // Toggle operation screens
+        const errorAlert = document.getElementById("error-alert");
+        const landingScreen = document.getElementById("landing-screen");
+        const loadingScreen = document.getElementById("loading-screen");
+        const reviewScreen = document.getElementById("review-screen");
+        const cropScreen = document.getElementById("crop-screen");
+        const workspaceScreen = document.getElementById("workspace-screen");
+
+        // 1. Error Card
+        if (state.error) {
+          document.getElementById("error-alert-text").textContent = state.error;
+          errorAlert.classList.remove("hidden");
+        } else {
+          errorAlert.classList.add("hidden");
+        }
+
+        // 2. Clear Interval helper if loading stopped
+        if (!state.loading) {
+          clearInterval(loadingTextsInterval);
+          loadingTextsInterval = null;
+        }
+
+        // 3. Render exact view target
+        if (state.loading) {
+          landingScreen.classList.add("hidden");
+          cropScreen.classList.add("hidden");
+          workspaceScreen.classList.add("hidden");
+          reviewScreen.classList.add("hidden");
+          loadingScreen.classList.remove("hidden");
+
+          // Start text rotation loops
+          document.getElementById("loading-progress-text").textContent = loadingTexts[state.loadingTextIndex];
+          updateLoadingBar();
+          if (!loadingTextsInterval) {
+            loadingTextsInterval = setInterval(() => {
+              state.loadingTextIndex = (state.loadingTextIndex + 1) % loadingTexts.length;
+              document.getElementById("loading-progress-text").textContent = loadingTexts[state.loadingTextIndex];
+              updateLoadingBar();
+            }, 2000);
+          }
+        } else if (state.cropMode) {
+          landingScreen.classList.add("hidden");
+          loadingScreen.classList.add("hidden");
+          reviewScreen.classList.add("hidden");
+          workspaceScreen.classList.add("hidden");
+          cropScreen.classList.remove("hidden");
+          requestAnimationFrame(() => drawCropCanvas());
+        } else if (state.reviewMode) {
+          landingScreen.classList.add("hidden");
+          loadingScreen.classList.add("hidden");
+          cropScreen.classList.add("hidden");
+          workspaceScreen.classList.add("hidden");
+          reviewScreen.classList.remove("hidden");
+
+          renderReviewScreen();
+        } else if (state.grid) {
+          landingScreen.classList.add("hidden");
+          loadingScreen.classList.add("hidden");
+          cropScreen.classList.add("hidden");
+          reviewScreen.classList.add("hidden");
+          workspaceScreen.classList.remove("hidden");
+
+          // Render game matrix grids
+          renderMatrix();
+          renderDrawing();
+          renderWordBank();
+        } else {
+          landingScreen.classList.remove("hidden");
+          loadingScreen.classList.add("hidden");
+          cropScreen.classList.add("hidden");
+          workspaceScreen.classList.add("hidden");
+          reviewScreen.classList.add("hidden");
+        }
+
+        // Render console text
+        document.getElementById("info-logger-text").textContent = state.infoText;
+      }
+
+      function updateLoadingBar() {
+        const bar = document.getElementById("loading-progress-bar");
+        bar.innerHTML = "";
+        for (let i = 0; i < loadingTexts.length; i++) {
+          const point = document.createElement("div");
+          point.className = `h-2 rounded-full transition-all duration-500 ${
+            i <= state.loadingTextIndex ? "bg-gradient-to-r from-pink-500 to-indigo-500 scale-105" : "bg-slate-100"
+          }`;
+          bar.appendChild(point);
+        }
+      }
+
+      function renderReviewScreen() {
+        if (!state.extractedGrid) return;
+
+        const rows = state.extractedGrid.length;
+        const cols = state.extractedGrid[0]?.length || 0;
+        document.getElementById("review-grid-dims").textContent = `${rows} × ${cols}`;
+
+        const gridContainer = document.getElementById("review-editable-grid");
+        gridContainer.innerHTML = "";
+        gridContainer.style.gridTemplateRows = `repeat(${rows}, minmax(0, 1fr))`;
+        gridContainer.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+        gridContainer.className = "inline-grid gap-1 bg-slate-900 p-4 rounded-lg";
+        gridContainer.style.display = "grid";
+
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            const value = state.extractedGrid[r][c] || "";
+            const cell = document.createElement("div");
+            cell.className = `w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center font-bold rounded text-sm transition-all ${value ? "bg-slate-700 border border-slate-600" : "bg-yellow-500/40 border-2 border-yellow-400"}`;
+
+            const input = document.createElement("input");
+            input.type = "text";
+            input.maxLength = 1;
+            input.value = value;
+            input.placeholder = "?";
+            input.autocomplete = "off";
+            input.spellcheck = false;
+            input.inputMode = "text";
+            input.dataset.reviewCell = `${r}-${c}`;
+            input.setAttribute("aria-label", `Row ${r + 1}, column ${c + 1}`);
+            input.className = `w-full h-full text-center font-bold text-sm sm:text-base uppercase rounded outline-none border-0 bg-transparent ${value ? "text-white" : "text-yellow-800 placeholder:text-yellow-700"}`;
+
+            input.addEventListener("input", (event) => {
+              const clean = event.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 1);
+              event.target.value = clean;
+              state.extractedGrid[r][c] = clean;
+              cell.className = `w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center font-bold rounded text-sm transition-all ${clean ? "bg-slate-700 border border-slate-600" : "bg-yellow-500/40 border-2 border-yellow-400"}`;
+              input.className = `w-full h-full text-center font-bold text-sm sm:text-base uppercase rounded outline-none border-0 bg-transparent ${clean ? "text-white" : "text-yellow-800 placeholder:text-yellow-700"}`;
+            });
+
+            input.addEventListener("keydown", (event) => {
+              if (event.key === "Enter" || event.key === "ArrowRight") {
+                event.preventDefault();
+                document.querySelector(`[data-review-cell="${r}-${Math.min(cols - 1, c + 1)}"]`)?.focus();
+              } else if (event.key === "ArrowLeft") {
+                event.preventDefault();
+                document.querySelector(`[data-review-cell="${r}-${Math.max(0, c - 1)}"]`)?.focus();
+              } else if (event.key === "ArrowDown") {
+                event.preventDefault();
+                document.querySelector(`[data-review-cell="${Math.min(rows - 1, r + 1)}-${c}"]`)?.focus();
+              } else if (event.key === "ArrowUp") {
+                event.preventDefault();
+                document.querySelector(`[data-review-cell="${Math.max(0, r - 1)}-${c}"]`)?.focus();
+              }
+            });
+
+            cell.appendChild(input);
+            gridContainer.appendChild(cell);
+          }
+        }
+
+        const wordsInput = document.getElementById("review-words-input");
+        if (wordsInput && document.activeElement !== wordsInput) {
+          wordsInput.value = state.extractedWords.join("\n");
+        }
+      }
+
+      function renderMatrix() {
+        const letterGrid = document.getElementById("letter-grid");
+        letterGrid.innerHTML = "";
+        const rows = state.grid.length;
+        const cols = state.grid[0].length;
+
+        document.getElementById("grid-dimensions-badge").textContent = `${rows} × ${cols}`;
+        letterGrid.style.gridTemplateRows = `repeat(${rows}, minmax(0, 1fr))`;
+        letterGrid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+
+        // Hide metadata thumb on loading demo
+        const sourcePreview = document.getElementById("source-preview-card");
+        if (state.image === "demo") {
+          sourcePreview.classList.add("hidden");
+        } else {
+          sourcePreview.classList.remove("hidden");
+        }
+
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            const char = state.grid[r][c];
+            const cell = document.createElement("div");
+            const isSelected = state.selectedStartCell && state.selectedStartCell.row === r && state.selectedStartCell.col === c;
+
+            cell.className = `flex items-center justify-center text-sm sm:text-base font-bold transition-all duration-150 rounded-md select-none cursor-pointer aspect-square ${
+              isSelected
+                ? "bg-pink-500 text-white shadow-md shadow-pink-500/30 scale-105 z-20"
+                : "text-neutral-200 hover:bg-neutral-800 hover:text-white"
+            }`;
+            cell.textContent = char;
+            cell.onclick = () => handleCellClick(r, c);
+            letterGrid.appendChild(cell);
+          }
+        }
+      }
+
+      function renderDrawing() {
+        const drawingSvg = document.getElementById("drawing-svg");
+        drawingSvg.innerHTML = "";
+        if (!state.grid) return;
+
+        const rows = state.grid.length;
+        const cols = state.grid[0].length;
+
+        state.solutions.forEach((sol, index) => {
+          const isFound = state.foundWords.includes(sol.word);
+          const isHovered = state.hoveredWord === sol.word;
+          if (!isFound && !isHovered) return;
+
+          const x1Pct = getPct(sol.startCol, cols);
+          const y1Pct = getPct(sol.startRow, rows);
+          const x2Pct = getPct(sol.endCol, cols);
+          const y2Pct = getPct(sol.endRow, rows);
+          const colScheme = Palette[index % Palette.length];
+
+          const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+
+          // Glow background trace line
+          const line1 = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          line1.setAttribute("x1", `${x1Pct}%`);
+          line1.setAttribute("y1", `${y1Pct}%`);
+          line1.setAttribute("x2", `${x2Pct}%`);
+          line1.setAttribute("y2", `${y2Pct}%`);
+          line1.setAttribute("stroke", colScheme.fill);
+          line1.setAttribute("stroke-width", "6");
+          line1.setAttribute("stroke-linecap", "round");
+          g.appendChild(line1);
+
+          // Solid precise core vector
+          const line2 = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          line2.setAttribute("x1", `${x1Pct}%`);
+          line2.setAttribute("y1", `${y1Pct}%`);
+          line2.setAttribute("x2", `${x2Pct}%`);
+          line2.setAttribute("y2", `${y2Pct}%`);
+          line2.setAttribute("stroke", colScheme.stroke);
+          line2.setAttribute("stroke-width", "1.5");
+          line2.setAttribute("stroke-linecap", "round");
+          line2.setAttribute("opacity", isHovered ? "1" : "0.75");
+          if (isHovered) {
+             line2.setAttribute("stroke-width", "2.5");
+          }
+          g.appendChild(line2);
+
+          drawingSvg.appendChild(g);
+        });
+
+        // Selection pin pulse guides
+        if (state.selectedStartCell) {
+          const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+          circle.setAttribute("cx", `${getPct(state.selectedStartCell.col, cols)}%`);
+          circle.setAttribute("cy", `${getPct(state.selectedStartCell.row, rows)}%`);
+          circle.setAttribute("r", "2.5");
+          circle.setAttribute("fill", "rgba(236,72,153,0.4)");
+          circle.setAttribute("class", "animate-ping");
+          drawingSvg.appendChild(circle);
+        }
+      }
+
+      function renderWordBank() {
+        const bankGrid = document.getElementById("word-bank-grid");
+        bankGrid.innerHTML = "";
+        const wordBankSection = document.getElementById("word-bank-section");
+
+        if (state.words.length === 0) {
+          wordBankSection.classList.add("hidden");
+        } else {
+          wordBankSection.classList.remove("hidden");
+          document.getElementById("word-bank-counter-text").textContent = `${state.foundWords.length}/${state.words.length}`;
+
+          state.words.forEach((w) => {
+            const isFound = state.foundWords.includes(w);
+            const token = document.createElement("div");
+            token.className = `p-2.5 rounded-xl border transition-all duration-150 flex items-center justify-between text-xs font-semibold cursor-pointer ${
+              isFound
+                ? "bg-emerald-50 border-emerald-100 text-emerald-800"
+                : "bg-slate-50 border-slate-200 hover:border-slate-300 text-slate-700"
+            }`;
+
+            token.onmouseenter = () => {
+              state.hoveredWord = w;
+              renderDrawing();
+            };
+            token.onmouseleave = () => {
+              state.hoveredWord = null;
+              renderDrawing();
+            };
+
+            token.innerHTML = `
+              <span class="tracking-wide uppercase truncate mr-1">${w}</span>
+              ${isFound 
+                ? `<span class="text-emerald-500 shrink-0"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span>`
+                : `<div class="w-3.5 h-3.5 rounded-full border border-slate-300 shrink-0"></div>`
+              }
+            `;
+            bankGrid.appendChild(token);
+          });
+        }
+      }
+    </script>
   </body>
 </html>

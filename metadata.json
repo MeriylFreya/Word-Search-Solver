@@ -1,6 +1,0 @@
-{
-  "name": "WordSolve AI",
-  "description": "AI Word Search Solver",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
